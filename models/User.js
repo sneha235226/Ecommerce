@@ -30,11 +30,6 @@ const userSchema = new mongoose.Schema(
     phone: { type: String, trim: true, unique: true, sparse: true },
     passwordHash: { type: String, required: true },
     role: { type: String, enum: ["customer", "seller"], default: "customer" },
-    sellerType: {
-      type: String,
-      enum: ["b2b", "b2c", "both"],
-      default: null,
-    },
     isActive: { type: Boolean, default: true },
     isEmailVerified: { type: Boolean, default: false },
     isPhoneVerified: { type: Boolean, default: false },
@@ -49,6 +44,5 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.index({ role: 1, createdAt: -1 });
-userSchema.index({ role: 1, sellerType: 1 });
 
 module.exports = mongoose.models.User || mongoose.model("User", userSchema);

@@ -26,13 +26,12 @@ function buildUserResponse(user) {
   };
   if (user.firstName !== undefined) response.firstName = user.firstName;
   if (user.lastName !== undefined) response.lastName = user.lastName;
-  if (role === "seller") response.sellerType = user.sellerType || "B2C";
   return response;
 }
 
 async function register(req, res) {
   try {
-    const { firstName, lastName, gender, email, phone, password, role, sellerType } = req.body;
+    const { firstName, lastName, gender, email, phone, password, role } = req.body;
 
     if (!firstName || !password) {
       return res.status(400).json({ message: "firstName and password are required" });
@@ -58,18 +57,6 @@ async function register(req, res) {
     const allowedSelfSignupRoles = new Set(["customer", "seller"]);
     const safeRole = allowedSelfSignupRoles.has(role) ? role : "customer";
 
-    const allowedSellerTypes = new Set(["B2C", "B2B", "both"]);
-    const safeSellerType =
-      safeRole === "seller"
-        ? allowedSellerTypes.has(sellerType)
-          ? sellerType
-          : "B2C"
-        : null;
-
-    if (safeRole === "seller" && sellerType && !allowedSellerTypes.has(sellerType)) {
-      return res.status(400).json({ message: "Invalid sellerType. Must be B2C, B2B, or both" });
-    }
-
     const user = await User.create({
       firstName,
       lastName,
@@ -78,7 +65,6 @@ async function register(req, res) {
       phone,
       passwordHash,
       role: safeRole,
-      sellerType: safeSellerType,
     });
 
     // Send OTP if email was provided
