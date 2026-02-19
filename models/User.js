@@ -39,6 +39,8 @@ const userSchema = new mongoose.Schema(
     lastLoginAt: { type: Date },
     emailVerificationOtp: { type: String, default: null, select: false },
     emailVerificationExpires: { type: Date, default: null, select: false },
+    phoneVerificationOtp: { type: String, default: null, select: false },
+    phoneVerificationExpires: { type: Date, default: null, select: false },
   },
   { timestamps: true, collection: "users" }
 );

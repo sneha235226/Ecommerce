@@ -1,5 +1,9 @@
 const nodemailer = require("nodemailer");
 
+/**
+ * Create and return a nodemailer transporter instance
+ * Uses SMTP configuration from environment variables
+ */
 function createTransporter() {
   const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
 
@@ -18,9 +22,13 @@ function createTransporter() {
   });
 }
 
+/**
+ * Send OTP email for email verification during registration or resend
+ * @param {string} to - Recipient email address
+ * @param {string} otp - 6-digit OTP code
+ */
 async function sendOtpEmail(to, otp) {
   const from = process.env.SMTP_FROM || process.env.SMTP_USER;
-
   const transporter = createTransporter();
 
   const html = `
@@ -87,4 +95,4 @@ async function sendOtpEmail(to, otp) {
   });
 }
 
-module.exports = { sendOtpEmail };
+module.exports = { sendOtpEmail};

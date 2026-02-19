@@ -1,13 +1,24 @@
 const express = require("express");
 const { requireUserAuth } = require("../../middleware/auth");
-const { register, login, me, verifyEmail, resendVerification } = require("../../controllers/authController");
+const { register, login, me, sendEmailOtp, verifyEmail, sendSmsOtp, verifySmsOtp, loginWithEmailOtp, loginWithPhoneOtp } = require("../../controllers/authController");
 
 const router = express.Router();
 
+
+// Login endpoints
+// 1. Email & Password: /login (POST)
+// 2. Phone & Password: /login (POST) (same endpoint, pass phone instead of email)
+// 3. Email & OTP: /login-email-otp (POST)
+// 4. Phone & OTP: /login-phone-otp (POST)
+
 router.post("/register", register);
-router.post("/login", login);
+router.post("/login", login); // email+password or phone+password
+router.post("/login-email-otp", loginWithEmailOtp); // email+otp
+router.post("/login-phone-otp", loginWithPhoneOtp); // phone+otp
 router.get("/me", requireUserAuth, me);
-router.post("/verify-email", requireUserAuth, verifyEmail);
-router.post("/resend-verification", requireUserAuth, resendVerification);
+router.post("/send-email-otp", sendEmailOtp);
+router.post("/verify-email-otp", verifyEmail);
+router.post("/send-sms-otp", sendSmsOtp);
+router.post("/verify-sms-otp", verifySmsOtp);
 
 module.exports = router;
