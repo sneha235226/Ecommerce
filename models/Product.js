@@ -3,7 +3,10 @@ const mongoose = require("mongoose");
 const bulkPricingSchema = new mongoose.Schema(
   {
     minQty: { type: Number, min: 1, required: true },
+    maxQty: { type: Number, min: 1, default: null },
     pricePerUnit: { type: Number, min: 0, required: true },
+    discountPercent: { type: Number, min: 0, max: 100, default: 0 },
+    message: { type: String, trim: true, default: "" },
   },
   { _id: false }
 );
@@ -36,35 +39,50 @@ const variantSchema = new mongoose.Schema(
 const productSchema = new mongoose.Schema(
   {
     store: { type: mongoose.Schema.Types.ObjectId, ref: "Store", required: true, index: true },
+    seller: { type: mongoose.Schema.Types.ObjectId, ref: "Seller", default: null, index: true },
     category: { type: mongoose.Schema.Types.ObjectId, ref: "Category", required: true, index: true },
+    subcategory: { type: mongoose.Schema.Types.ObjectId, ref: "Category", default: null, index: true },
     title: { type: String, trim: true, required: true },
     slug: { type: String, trim: true, lowercase: true, unique: true, required: true },
     description: { type: String, trim: true, default: "" },
+    shortDescription: { type: String, trim: true, default: "" },
     brand: { type: String, trim: true, default: "" },
     tags: [{ type: String, trim: true }],
+    searchKeywords: [{ type: String, trim: true }],
     baseSku: { type: String, trim: true, required: true },
     basePrice: { type: Number, min: 0, required: true },
     baseCompareAtPrice: { type: Number, min: 0, default: null },
     totalStock: { type: Number, min: 0, default: 0 },
     images: [{ type: String, trim: true }],
+    videos: [{ type: String, trim: true }],
+    zoomImageEnabled: { type: Boolean, default: true },
     variants: { type: [variantSchema], default: [] },
     ratingAverage: { type: Number, min: 0, max: 5, default: 0 },
     ratingCount: { type: Number, min: 0, default: 0 },
+    reviewCount: { type: Number, min: 0, default: 0 },
     isPublished: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
-    targetAudience: {
-      type: String,
-      enum: ["B2C", "B2B", "both"],
-      default: "B2C",
-    },
+    moderationStatus: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
+    targetAudience: { type: String, enum: ["B2C", "B2B", "both"], default: "B2C" },
+    sellerMode: { type: String, enum: ["retail", "wholesale", "hybrid"], default: "retail" },
     moq: { type: Number, min: 1, default: 1 },
+    leadTimeDays: { type: Number, min: 0, default: 0 },
+    manufacturingCapacity: { type: Number, min: 0, default: 0 },
+    bulkPricingEnabled: { type: Boolean, default: false },
     bulkPricing: { type: [bulkPricingSchema], default: [] },
+    returnPolicy: { type: String, trim: true, default: "" },
+    discountPercent: { type: Number, min: 0, max: 100, default: 0 },
+    discountAmount: { type: Number, min: 0, default: 0 },
+    taxRatePercent: { type: Number, min: 0, max: 100, default: 0 },
+    lowStockThreshold: { type: Number, min: 0, default: 5 },
+    allowCod: { type: Boolean, default: true },
   },
   { timestamps: true }
 );
 
-productSchema.index({ title: "text", description: "text", brand: "text", tags: "text" });
-productSchema.index({ category: 1, isPublished: 1, createdAt: -1 });
-productSchema.index({ store: 1, createdAt: -1 });
+productSchema.index({ title: "text", description: "text", brand: "text", tags: "text", searchKeywords: "text" });
+productSchema.index({ category: 1, subcategory: 1, isPublished: 1, createdAt: -1 });
+productSchema.index({ store: 1, seller: 1, createdAt: -1 });
+productSchema.index({ ratingAverage: -1, basePrice: 1 });
 
 module.exports = mongoose.models.Product || mongoose.model("Product", productSchema);

@@ -15,6 +15,7 @@ const couponSchema = new mongoose.Schema(
     validUntil: { type: Date, required: true },
     applicableStores: [{ type: mongoose.Schema.Types.ObjectId, ref: "Store" }],
     applicableCategories: [{ type: mongoose.Schema.Types.ObjectId, ref: "Category" }],
+    applicableFor: { type: String, enum: ["all", "retail", "wholesale", "hybrid"], default: "all" },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true }
