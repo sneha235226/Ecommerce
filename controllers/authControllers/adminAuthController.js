@@ -1,6 +1,6 @@
 const bcrypt = require("bcryptjs");
-const Admin = require("../models/Admin");
-const { generateAuthToken } = require("../utils/token");
+const Admin = require("../../models/Admin");
+const { generateAuthToken } = require("../../utils/token");
 
 function buildAdminResponse(admin) {
   return {

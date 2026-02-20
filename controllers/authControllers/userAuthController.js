@@ -1,10 +1,10 @@
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
-const User = require("../models/User");
-const Admin = require("../models/Admin");
-const { generateAuthToken } = require("../utils/token");
-const { sendOtpEmail } = require("../utils/mailer");
-const { sendOtpSms } = require("../utils/sms");
+const User = require("../../models/User");
+const Admin = require("../../models/Admin");
+const { generateAuthToken } = require("../../utils/token");
+const { sendOtpEmail } = require("../../utils/mailer");
+const { sendOtpSms } = require("../../utils/sms");
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
 
