@@ -95,50 +95,6 @@ async function requireSellerAuth(req, res, next) {
   } catch (error) {
     return res.status(401).json({ message: "Unauthorized: invalid token" });
   }
-}
+} 
 
-async function requireB2BSellerAuth(req, res, next) {
-  try {
-    const result = await verifyTokenAndAttachUser(req, res);
-    if (result.error) {
-      return res.status(result.error.status).json({ message: result.error.message });
-    }
-    if (result.decoded.role !== "seller") {
-      return res.status(403).json({ message: "Forbidden: seller token required" });
-    }
-    const sellerType = result.user.sellerType;
-    if (sellerType !== "B2B" && sellerType !== "both") {
-      return res.status(403).json({ message: "Forbidden: B2B seller access required" });
-    }
-
-    req.user = result.user;
-    req.tokenPayload = result.decoded;
-    next();
-  } catch (error) {
-    return res.status(401).json({ message: "Unauthorized: invalid token" });
-  }
-}
-
-async function requireB2CSellerAuth(req, res, next) {
-  try {
-    const result = await verifyTokenAndAttachUser(req, res);
-    if (result.error) {
-      return res.status(result.error.status).json({ message: result.error.message });
-    }
-    if (result.decoded.role !== "seller") {
-      return res.status(403).json({ message: "Forbidden: seller token required" });
-    }
-    const sellerType = result.user.sellerType;
-    if (sellerType !== "B2C" && sellerType !== "both") {
-      return res.status(403).json({ message: "Forbidden: B2C seller access required" });
-    }
-
-    req.user = result.user;
-    req.tokenPayload = result.decoded;
-    next();
-  } catch (error) {
-    return res.status(401).json({ message: "Unauthorized: invalid token" });
-  }
-}
-
-module.exports = { requireAuth, requireUserAuth, requireAdminAuth, requireSellerAuth, requireB2BSellerAuth, requireB2CSellerAuth };
+module.exports = { requireAuth, requireUserAuth, requireAdminAuth, requireSellerAuth};

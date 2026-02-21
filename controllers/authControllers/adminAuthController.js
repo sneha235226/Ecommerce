@@ -1,5 +1,6 @@
 const bcrypt = require("bcryptjs");
 const Admin = require("../../models/Admin");
+const User = require("../../models/User");
 const { generateAuthToken } = require("../../utils/token");
 
 function buildAdminResponse(admin) {
@@ -46,11 +47,51 @@ async function login(req, res) {
   }
 }
 
+async function register(req, res) {
+  try {
+    const { firstName, lastName, email, phone, password, role, permissions } = req.body;
+
+    if (!email || !phone || !password) {
+      return res.status(400).json({ message: "email, phone and password are required" });
+    }
+
+    const identifiers = [{ email }, { phone }];
+    const existingAdmin = await Admin.findOne({ $or: identifiers });
+    const existingUser = await User.findOne({ $or: identifiers });
+    if (existingAdmin || existingUser) {
+      return res.status(409).json({ message: "Email or phone already in use" });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const admin = await Admin.create({
+      firstName: firstName || "",
+      lastName: lastName || "",
+      email,
+      phone,
+      passwordHash,
+      role,
+      permissions: Array.isArray(permissions) ? permissions : [],
+    });
+
+    return res.status(201).json({
+      message: "Admin registration successful",
+      admin: buildAdminResponse(admin),
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({ message: "Email or phone already in use" });
+    }
+    return res.status(500).json({ message: "Unable to register admin", error: error.message });
+  }
+}
+
 function me(req, res) {
   return res.status(200).json({ admin: buildAdminResponse(req.user) });
 }
 
 module.exports = {
+  register,
   login,
   me,
 };

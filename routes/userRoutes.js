@@ -24,6 +24,6 @@ router.get("/", requireAdmin, getUsers);
 router.get("/:id", getUserById);
 router.put("/:id", updateUser);
 router.patch("/:id", updateUser);
-router.delete("/:id", deleteUser);
+router.delete("/:id", requireAdmin, deleteUser);
 
 module.exports = router;
