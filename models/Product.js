@@ -50,7 +50,7 @@ const productSchema = new mongoose.Schema(
     tags: [{ type: String, trim: true }],
     searchKeywords: [{ type: String, trim: true }],
     baseSku: { type: String, trim: true, required: true },
-    basePrice: { type: Number, min: 0, required: true },
+    basePrice: { type: Number, min: 0 },
     baseCompareAtPrice: { type: Number, min: 0, default: null },
     totalStock: { type: Number, min: 0, default: 0 },
     images: [{ type: String, trim: true }],
