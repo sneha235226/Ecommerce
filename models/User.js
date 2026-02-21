@@ -63,7 +63,6 @@ const userSchema = new mongoose.Schema(
     deletedAt: { type: Date, default: null },
     addresses: { type: [addressSchema], default: [] },
     savedPaymentMethods: { type: [savedPaymentMethodSchema], default: [] },
-    wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
     lastLoginAt: { type: Date },
     emailVerificationOtp: { type: String, default: null, select: false },
     emailVerificationExpires: { type: Date, default: null, select: false },

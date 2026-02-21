@@ -4,7 +4,7 @@ const sellerDocumentSchema = new mongoose.Schema(
   {
     documentType: {
       type: String,
-      enum: ["gst_certificate", "tax_id", "pan", "bank_proof", "business_license", "other"],
+      enum: ["gst_certificate", "pan", "other"],
       required: true,
     },
     url: { type: String, trim: true, required: true },
@@ -15,16 +15,6 @@ const sellerDocumentSchema = new mongoose.Schema(
   { _id: true }
 );
 
-const commissionOverrideSchema = new mongoose.Schema(
-  {
-    category: { type: mongoose.Schema.Types.ObjectId, ref: "Category", required: true },
-    retailCommissionPercent: { type: Number, min: 0, max: 100, default: null },
-    wholesaleCommissionPercent: { type: Number, min: 0, max: 100, default: null },
-    hybridCommissionPercent: { type: Number, min: 0, max: 100, default: null },
-  },
-  { _id: false }
-);
-
 const sellerSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, unique: true, index: true },
@@ -33,7 +23,11 @@ const sellerSchema = new mongoose.Schema(
     contactEmail: { type: String, trim: true, lowercase: true, default: "" },
     contactPhone: { type: String, trim: true, default: "" },
     gstNumber: { type: String, trim: true, default: "" },
-    taxId: { type: String, trim: true, default: "" },
+    panDetails: {
+      panNumber: { type: String, trim: true, uppercase: true, default: "" },
+      nameAsPerPan: { type: String, trim: true, default: "" },
+      dateOfIncorporation: { type: String, trim: true, default: "" },
+    },
     businessAddress: {
       line1: { type: String, trim: true, default: "" },
       line2: { type: String, trim: true, default: "" },
@@ -50,6 +44,9 @@ const sellerSchema = new mongoose.Schema(
       branchName: { type: String, trim: true, default: "" },
       upiId: { type: String, trim: true, default: "" },
     },
+    panVerification: {
+      status: { type: String, enum: ["unverified", "pending", "verified", "failed"], default: "unverified" },
+    },
     documents: { type: [sellerDocumentSchema], default: [] },
     mode: { type: String, enum: ["retail", "wholesale", "hybrid"], default: "retail", index: true },
     wholesaleCapabilities: {
@@ -63,7 +60,6 @@ const sellerSchema = new mongoose.Schema(
       default: "pending_approval",
       index: true,
     },
-    isApproved: { type: Boolean, default: false },
     approval: {
       approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", default: null },
       approvedAt: { type: Date, default: null },
@@ -71,12 +67,6 @@ const sellerSchema = new mongoose.Schema(
     },
     ratingAverage: { type: Number, min: 0, max: 5, default: 0 },
     ratingCount: { type: Number, min: 0, default: 0 },
-    commission: {
-      retailCommissionPercent: { type: Number, min: 0, max: 100, default: 12 },
-      wholesaleCommissionPercent: { type: Number, min: 0, max: 100, default: 5 },
-      hybridCommissionPercent: { type: Number, min: 0, max: 100, default: 8 },
-      categoryOverrides: { type: [commissionOverrideSchema], default: [] },
-    },
     escrowBalance: { type: Number, min: 0, default: 0 },
     lastSettlementAt: { type: Date, default: null },
   },

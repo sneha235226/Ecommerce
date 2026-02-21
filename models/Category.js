@@ -8,11 +8,6 @@ const categorySchema = new mongoose.Schema(
     imageUrl: { type: String, trim: true, default: "" },
     parent: { type: mongoose.Schema.Types.ObjectId, ref: "Category", default: null, index: true },
     level: { type: Number, min: 0, default: 0 },
-    commissionOverrides: {
-      retailCommissionPercent: { type: Number, min: 0, max: 100, default: null },
-      wholesaleCommissionPercent: { type: Number, min: 0, max: 100, default: null },
-      hybridCommissionPercent: { type: Number, min: 0, max: 100, default: null },
-    },
     isActive: { type: Boolean, default: true },
     sortOrder: { type: Number, default: 0 },
   },
