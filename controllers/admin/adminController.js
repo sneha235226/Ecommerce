@@ -1,6 +1,6 @@
 const bcrypt = require("bcryptjs");
-const Admin = require("../models/Admin");
-const User = require("../models/User");
+const Admin = require("../../models/Admin");
+const User = require("../../models/User");
 
 function sanitizeAdmin(adminDoc) {
   const admin = adminDoc.toObject ? adminDoc.toObject() : adminDoc;

@@ -8,7 +8,7 @@ function buildAdminResponse(admin) {
     id: admin._id,
     email: admin.email,
     phone: admin.phone,
-    role: "admin",
+    role: admin.role,
   };
 }
 
@@ -17,7 +17,9 @@ async function login(req, res) {
     const { email, phone, password } = req.body;
 
     if ((!email && !phone) || !password) {
-      return res.status(400).json({ message: "Provide email or phone and password" });
+      return res.status(400).json({
+        message: "Provide email or phone and password",
+      });
     }
 
     const identifiers = [];
@@ -27,12 +29,23 @@ async function login(req, res) {
     const admin = await Admin.findOne({ $or: identifiers });
 
     if (!admin) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({
+        message: "Invalid credentials",
+      });
+    }
+
+    if (!admin.isActive) {
+      return res.status(403).json({
+        message: "Admin account disabled",
+      });
     }
 
     const isMatch = await bcrypt.compare(password, admin.passwordHash);
+
     if (!isMatch) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({
+        message: "Invalid credentials",
+      });
     }
 
     const token = generateAuthToken(admin, "admin");
@@ -42,8 +55,12 @@ async function login(req, res) {
       token,
       admin: buildAdminResponse(admin),
     });
+
   } catch (error) {
-    return res.status(500).json({ message: "Unable to login admin", error: error.message });
+    return res.status(500).json({
+      message: "Unable to login admin",
+      error: error.message,
+    });
   }
 }
 
@@ -64,13 +81,15 @@ async function register(req, res) {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
+    const validRoles = ["admin", "super_admin"];
+
     const admin = await Admin.create({
       firstName: firstName || "",
       lastName: lastName || "",
       email,
       phone,
       passwordHash,
-      role,
+      role: validRoles.includes(role) ? role : "admin",
       permissions: Array.isArray(permissions) ? permissions : [],
     });
 

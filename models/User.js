@@ -46,7 +46,7 @@ const userSchema = new mongoose.Schema(
     email: { type: String, trim: true, lowercase: true, unique: true, sparse: true },
     phone: { type: String, trim: true, unique: true, sparse: true },
     passwordHash: { type: String, required: true },
-    role: { type: String, enum: ["customer", "seller", "admin"], default: "customer" },
+    role: ["customer"],
     loginMethods: {
       type: [
         {

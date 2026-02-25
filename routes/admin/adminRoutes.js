@@ -1,12 +1,12 @@
 const express = require("express");
-const { requireAdminAuth } = require("../middleware/auth");
+const { requireAdminAuth } = require("../../middleware/auth");
 const {
   createAdmin,
   getAdmins,
   getAdminById,
   updateAdmin,
   deleteAdmin,
-} = require("../controllers/adminController");
+} = require("../../controllers/admin/adminController");
 
 const router = express.Router();
 

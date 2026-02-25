@@ -1,12 +1,12 @@
 const express = require("express");
-const { requireAuth } = require("../middleware/auth");
+const { requireAuth } = require("../../middleware/auth");
 const {
   createUser,
   getUsers,
   getUserById,
   updateUser,
   deleteUser,
-} = require("../controllers/userController");
+} = require("../../controllers/user/userController");
 
 const router = express.Router();
 
@@ -19,10 +19,9 @@ function requireAdmin(req, res, next) {
 
 router.use(requireAuth);
 
-router.post("/", requireAdmin, createUser);
+router.post("/", createUser);
 router.get("/", requireAdmin, getUsers);
 router.get("/:id", getUserById);
-router.put("/:id", updateUser);
 router.patch("/:id", updateUser);
 router.delete("/:id", requireAdmin, deleteUser);
 

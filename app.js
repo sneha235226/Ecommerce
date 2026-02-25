@@ -1,9 +1,10 @@
 const express = require("express");
-const userAuthRoutes = require("./routes/authRoutes/userAuth");
-const adminAuthRoutes = require("./routes/authRoutes/adminAuth");
-const userRoutes = require("./routes/userRoutes");
-const sellerRoutes = require("./routes/sellerRoutes");
-const adminRoutes = require("./routes/adminRoutes");
+const userAuthRoutes = require("./routes/auth/userAuth");
+const adminAuthRoutes = require("./routes/auth/adminAuth");
+const userRoutes = require("./routes/user/userRoutes");
+const sellerRoutes = require("./routes/seller/sellerRoutes");
+const adminRoutes = require("./routes/admin/adminRoutes");
+const publicRoutes = require("./routes/public/public.routes");
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.use("/api/auth/admin", adminAuthRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/sellers", sellerRoutes);
 app.use("/api/admins", adminRoutes);
+app.use("/api/public", publicRoutes);
 
 app.use((err, req, res, next) => {
   res.status(500).json({ message: "Internal server error", error: err.message });

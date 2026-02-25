@@ -11,11 +11,23 @@ const storeSchema = new mongoose.Schema(
     isActive: { type: Boolean, default: true },
     serviceablePostalCodes: [{ type: String, trim: true }],
     returnPolicy: { type: String, trim: true, default: "" },
+    location: {
+      type: {
+        type: String,
+        enum: ["Point"],
+        default: "Point",
+      },
+      coordinates: {
+        type: [Number],
+        default: [0, 0],
+      },
+    },
   },
   { timestamps: true }
 );
 
 storeSchema.index({ name: "text", description: "text" });
 storeSchema.index({ seller: 1, createdAt: -1 });
+storeSchema.index({ location: "2dsphere" });
 
 module.exports = mongoose.models.Store || mongoose.model("Store", storeSchema);

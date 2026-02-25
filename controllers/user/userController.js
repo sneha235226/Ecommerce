@@ -1,6 +1,6 @@
 const bcrypt = require("bcryptjs");
-const User = require("../models/User");
-const Admin = require("../models/Admin");
+const User = require("../../models/User");
+const Admin = require("../../models/Admin");
 const ALLOWED_ROLES = new Set(["customer", "seller"]);
 const ALLOWED_SELLER_TYPES = new Set(["B2C", "B2B", "both"]);
 

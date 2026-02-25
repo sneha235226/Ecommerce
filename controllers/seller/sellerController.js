@@ -1,6 +1,6 @@
-const Seller = require("../models/Seller");
-const User = require("../models/User");
-const { verifyPanDetails } = require("../services/sandboxClient");
+const Seller = require("../../models/Seller");
+const User = require("../../models/User");
+const { verifyPanDetails } = require("../../services/sandboxClient");
 
 const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 const DATE_YYYY_MM_DD_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -8,7 +8,7 @@ const DATE_DD_MM_YYYY_REGEX = /^\d{2}-\d{2}-\d{4}$/;
 const DATE_DD_SLASH_MM_SLASH_YYYY_REGEX = /^\d{2}\/\d{2}\/\d{4}$/;
 
 function isAdmin(user) {
-  return user?.role === "admin" || user?.constructor?.modelName === "Admin";
+  return user?.constructor?.modelName === "Admin";
 }
 
 function buildDateCandidates(input) {
@@ -47,13 +47,14 @@ function canAccessSeller(reqUser, sellerDoc) {
   return String(sellerDoc.user) === String(reqUser?._id);
 }
 
-function applySellerUpdate(seller, input, { admin }) {
+function applySellerUpdate(seller, input) {
+  const isApproved = seller.status === "approved";
+
   const allowedTopLevel = [
     "businessName",
     "legalBusinessName",
     "contactEmail",
     "contactPhone",
-    "gstNumber",
     "mode",
   ];
 
@@ -63,11 +64,17 @@ function applySellerUpdate(seller, input, { admin }) {
     }
   }
 
-  if (input.panDetails && typeof input.panDetails === "object") {
-    seller.panDetails = {
-      ...seller.panDetails,
-      ...input.panDetails,
-    };
+  if (!isApproved) {
+    if (input.gstNumber !== undefined) {
+      seller.gstNumber = input.gstNumber;
+    }
+    if (input.panDetails && typeof input.panDetails === "object") {
+      seller.panDetails = {
+        ...seller.panDetails,
+        ...input.panDetails,
+      };
+    }
+
   }
 
   if (input.businessAddress && typeof input.businessAddress === "object") {
@@ -91,82 +98,115 @@ function applySellerUpdate(seller, input, { admin }) {
     };
   }
 
-  if (admin) {
-    if (input.status !== undefined) seller.status = input.status;
-    if (input.approval && typeof input.approval === "object") {
-      seller.approval = {
-        ...seller.approval,
-        ...input.approval,
-      };
-    }
-  }
-
   if (seller.panDetails?.panNumber) {
-    seller.panDetails.panNumber = String(seller.panDetails.panNumber).trim().toUpperCase();
+    seller.panDetails.panNumber =
+      String(seller.panDetails.panNumber)
+      .trim()
+      .toUpperCase();
+  }
+}
+
+// Update pan and gst only until seller is not approved. After approval, only allow update of businessName, legalBusinessName, contactEmail, contactPhone, and mode.
+async function updateSeller(req, res) {
+  try {
+    const seller = await Seller.findOne({
+      user: req.user._id
+    });
+
+    if (!seller) {
+      return res.status(404).json({
+        message: "Seller profile not found"
+      });
+    }
+
+    applySellerUpdate(seller, req.body || {});
+    await seller.save();
+    return res.status(200).json({
+      message: "Seller updated successfully",
+      seller
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Unable to update seller",
+      error: error.message
+    });
   }
 }
 
 async function createSeller(req, res) {
   try {
-    const admin = isAdmin(req.user);
-    const targetUserId = req.body.userId || req.user?._id;
-
-    if (!targetUserId) {
-      return res.status(400).json({ message: "userId is required" });
+    const userId = req.user?._id;
+    if (!userId) {
+      return res.status(401).json({
+        message: "Unauthorized"
+      });
     }
 
-    if (!admin && String(targetUserId) !== String(req.user?._id)) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-
-    const existingSeller = await Seller.findOne({ user: targetUserId });
+    const existingSeller = await Seller.findOne({
+      user: userId
+    });
     if (existingSeller) {
-      return res.status(409).json({ message: "Seller profile already exists for this user" });
+      return res.status(409).json({
+        message: "Seller profile already exists"
+      });
     }
 
-    const user = await User.findById(targetUserId);
+    const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({
+        message: "User not found"
+      });
     }
 
     const payload = {
-      user: targetUserId,
+      user: userId,
       businessName:
         req.body.businessName ||
-        (user.firstName ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ""}`.trim() : "New Seller"),
+        `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+        "New Seller",
       legalBusinessName: req.body.legalBusinessName || "",
-      contactEmail: req.body.contactEmail || user.email || "",
-      contactPhone: req.body.contactPhone || user.phone || "",
-      gstNumber: req.body.gstNumber || "",
+      contactEmail:
+        req.body.contactEmail || user.email || "",
+      contactPhone:
+        req.body.contactPhone || user.phone || "",
+      gstNumber:
+        req.body.gstNumber || "",
       panDetails: {
-        panNumber: req.body?.panDetails?.panNumber || "",
-        nameAsPerPan: req.body?.panDetails?.nameAsPerPan || "",
-        dateOfIncorporation: req.body?.panDetails?.dateOfIncorporation || "",
+        panNumber:
+          req.body?.panDetails?.panNumber || "",
+        nameAsPerPan:
+          req.body?.panDetails?.nameAsPerPan || "",
+        dateOfIncorporation:
+          req.body?.panDetails?.dateOfIncorporation || "",
       },
-      mode: req.body.mode || "retail",
-      businessAddress: req.body.businessAddress || {},
-      bankDetails: req.body.bankDetails || {},
-      wholesaleCapabilities: req.body.wholesaleCapabilities || {},
+
+      mode:
+        req.body.mode || "retail",
+      businessAddress:
+        req.body.businessAddress || {},
+      bankDetails:
+        req.body.bankDetails || {},
+      wholesaleCapabilities:
+        req.body.wholesaleCapabilities || {},
     };
 
-    if (admin && req.body.status) {
-      payload.status = req.body.status;
-    }
-
     if (payload.panDetails.panNumber) {
-      payload.panDetails.panNumber = String(payload.panDetails.panNumber).trim().toUpperCase();
+      payload.panDetails.panNumber =
+        String(payload.panDetails.panNumber)
+        .trim()
+        .toUpperCase();
     }
 
     const seller = await Seller.create(payload);
-
-    if (user.role !== "seller") {
-      user.role = "seller";
-      await user.save();
-    }
-
-    return res.status(201).json({ message: "Seller created", seller });
+    return res.status(201).json({
+      message: "Seller profile created successfully",
+      seller
+    });
   } catch (error) {
-    return res.status(500).json({ message: "Unable to create seller", error: error.message });
+    return res.status(500).json({
+      message: "Unable to create seller",
+      error: error.message
+    });
   }
 }
 
@@ -184,18 +224,18 @@ async function getMySellerProfile(req, res) {
 
 async function listSellers(req, res) {
   try {
-    if (!isAdmin(req.user)) {
-      const seller = await Seller.findOne({ user: req.user?._id });
-      if (!seller) {
-        return res.status(200).json({ count: 0, sellers: [] });
-      }
-      return res.status(200).json({ count: 1, sellers: [seller] });
-    }
-
     const sellers = await Seller.find().sort({ createdAt: -1 });
-    return res.status(200).json({ count: sellers.length, sellers });
+
+    return res.status(200).json({
+      count: sellers.length,
+      sellers
+    });
+
   } catch (error) {
-    return res.status(500).json({ message: "Unable to list sellers", error: error.message });
+    return res.status(500).json({
+      message: "Unable to list sellers",
+      error: error.message
+    });
   }
 }
 
@@ -215,28 +255,6 @@ async function getSellerById(req, res) {
     return res.status(200).json({ seller });
   } catch (error) {
     return res.status(500).json({ message: "Unable to fetch seller", error: error.message });
-  }
-}
-
-async function updateSeller(req, res) {
-  try {
-    const { id } = req.params;
-    const seller = await Seller.findById(id);
-
-    if (!seller) {
-      return res.status(404).json({ message: "Seller not found" });
-    }
-
-    if (!canAccessSeller(req.user, seller)) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-
-    applySellerUpdate(seller, req.body || {}, { admin: isAdmin(req.user) });
-    await seller.save();
-
-    return res.status(200).json({ message: "Seller updated", seller });
-  } catch (error) {
-    return res.status(500).json({ message: "Unable to update seller", error: error.message });
   }
 }
 
