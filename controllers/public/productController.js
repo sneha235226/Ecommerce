@@ -41,7 +41,51 @@ async function getProductById(req, res) {
     }
 }
 
+async function getProductBySubcategory(req, res) {
+    try {
+        const subcategory = req.params.subcategory;
+        if (!subcategory) {
+            return res.status(400).json({
+                message: "Subcategory required"
+            })
+        }
+        const products = await Product.find({ subcategory });
+        return res.status(200).json({
+            message: "Products fetched successfully",
+            products
+        });
+    } catch (error) {
+        return res.status(500).json({
+            message: "Failed to fetch products",
+            error: error.message
+        })
+    }
+}
+
+async function getProductBySpecificStore(req, res) {
+    try {
+        const store = req.params.store;
+        if (!store) {
+            return res.status(400).json({
+                message: "Store required"
+            })
+        }
+        const products = await Product.find({ store });
+        return res.status(200).json({
+            message: "Products fetched successfully",
+            products
+        });
+    } catch (error) {
+        return res.status(500).json({
+            message: "Failed to fetch products",
+            error: error.message
+        })
+    }
+}
+
 module.exports = {
     getProductById,
-    getProducts
+    getProducts,
+    getProductBySubcategory,
+    getProductBySpecificStore
 }
