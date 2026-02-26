@@ -2,18 +2,43 @@ const mongoose = require("mongoose");
 
 const wishlistItemSchema = new mongoose.Schema(
   {
-    product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
-    addedAt: { type: Date, default: Date.now },
+    product: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+      required: true
+    },
+    variantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null
+    },
+    addedAt: {
+      type: Date,
+      default: Date.now
+    },
+    titleSnapshot: {
+      type: String,
+      default: ""
+    },
+    imageSnapshot: {
+      type: String,
+      default: ""
+    }
   },
-  { _id: false }
+  { _id: true }
 );
 
 const wishlistSchema = new mongoose.Schema(
   {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, unique: true, index: true },
-    items: { type: [wishlistItemSchema], default: [] },
-    isPublic: { type: Boolean, default: false },
-    shareToken: { type: String, trim: true, default: "" },
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      unique: true
+    },
+    items: {
+      type: [wishlistItemSchema],
+      default: []
+    }
   },
   { timestamps: true }
 );

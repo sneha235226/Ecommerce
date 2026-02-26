@@ -3,13 +3,6 @@ const Store = require("../../models/Store");
 const s3 = require("../../config/s3");
 const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
 
-function generateSlug(name) {
-    return name
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)+/g, "");
-}
 
 async function deleteUploadedFiles(filesObj) {
     if (!filesObj) return;
@@ -39,14 +32,7 @@ async function deleteFileByUrl(url) {
 
 async function createStore(req, res) {
     try {
-        const { name, description, serviceablePostalCodes, returnPolicy } = req.body;
-
-        if (!name || !name.trim()) {
-            await deleteUploadedFiles(req.files);
-            return res.status(400).json({
-                message: "Store name required"
-            });
-        }
+        const { description, serviceablePostalCodes, returnPolicy } = req.body;
 
         const seller = req.seller;
 
@@ -62,16 +48,8 @@ async function createStore(req, res) {
             });
         }
 
-        let slug = generateSlug(name);
-        let counter = 1;
-        while (await Store.findOne({ slug })) {
-            slug = `${slug}-${counter++}`;
-        }
-
         const store = await Store.create({
             seller: seller._id,
-            name: name.trim(),
-            slug,
             description: description || "",
             logoUrl:
             req.files?.logo?.[0]?.location || "",
@@ -108,7 +86,6 @@ async function getStore(req, res) {
                 message: "Seller not found"
             });
         }
-
 
         const store = await Store.findOne({ seller: seller._id });
         if (!store) {
@@ -150,16 +127,10 @@ async function updateStore(req, res) {
         }
 
         const {
-            name,
             description,
             serviceablePostalCodes,
             returnPolicy
         } = req.body;
-
-        if (name) {
-            store.name = name.trim();
-            store.slug = generateSlug(name);
-        }
 
         if (description !== undefined) store.description = description;
         if (serviceablePostalCodes) store.serviceablePostalCodes = JSON.parse(serviceablePostalCodes);

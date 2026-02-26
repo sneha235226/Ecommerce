@@ -17,23 +17,36 @@ function generateSku(prefix = "PRD") {
 }
 
 async function deleteS3Files(files) {
-    if (!files) return;
+    if (!files?.length) return
     for (const f of files) {
-        if (!f.key) continue;
-        await s3.send(
-            new DeleteObjectCommand({
-                Bucket: process.env.AWS_BUCKET_NAME,
-                Key: f.key
-            })
-        )
+        if (!f?.key) continue
+        try {
+            await s3.send(
+                new DeleteObjectCommand({
+                    Bucket: process.env.AWS_BUCKET_NAME,
+                    Key: f.key
+                })
+            )
+            // console.log("Deleted:", f.key)
+        } catch (err) {
+            // console.log("Delete failed:", f.key)
+        }
     }
 }
-
 function extractKeysFromUrls(urls = []) {
-    return urls.map(url => {
-        const key = url.split(".amazonaws.com/")[1]
-        return { key }
-    })
+    return urls
+        .filter(Boolean)
+        .map(url => {
+            try {
+                const parsedUrl = new URL(url)
+                return {
+                    key: parsedUrl.pathname.substring(1)
+                }
+            } catch (err) {
+                return null
+            }
+        })
+        .filter(Boolean)
 }
 
 function groupVariantImages(files) {
@@ -69,7 +82,8 @@ async function createProduct(req, res) {
             totalStock,
             discountPercent,
             taxRatePercent,
-            returnPolicy
+            returnPolicy,
+            specifications
         } = req.body
 
 
@@ -183,15 +197,24 @@ async function createProduct(req, res) {
             tags: tags ? JSON.parse(tags) : [],
             searchKeywords: searchKeywords ? JSON.parse(searchKeywords) : [],
             baseSku: generateSku(),
-            basePrice: variants.length === 0 ? Number(basePrice) : undefined,
-            totalStock: variants.length === 0 ? Number(totalStock) : undefined,
+            basePrice: variants.length === 0
+                ? Number(basePrice)
+                : undefined,
+            totalStock: variants.length === 0
+                ? Number(totalStock)
+                : undefined,
             images,
             videos,
             variants: safeVariants,
             targetAudience,
             sellerMode,
             moq: Number(moq) || 1,
-            bulkPricing: bulkPricing ? JSON.parse(bulkPricing) : [],
+            bulkPricing: bulkPricing
+                ? JSON.parse(bulkPricing)
+                : [],
+            specifications: specifications
+                ? JSON.parse(specifications)
+                : [],
             discountPercent: Number(discountPercent) || 0,
             taxRatePercent: Number(taxRatePercent) || 0,
             returnPolicy: returnPolicy || "",
@@ -212,7 +235,7 @@ async function createProduct(req, res) {
     }
 }
 
-// Only allow updating certain fields, not store, seller, category.
+// update product
 async function updateProduct(req, res) {
     try {
         const { id } = req.params
@@ -239,49 +262,130 @@ async function updateProduct(req, res) {
             })
         }
 
-        let variants = product.variants
-        if (req.body.variants) {
-            variants = JSON.parse(req.body.variants);
+        const {
+            title,
+            description,
+            shortDescription,
+            brand,
+            tags,
+            searchKeywords,
+            targetAudience,
+            sellerMode,
+            moq,
+            discountPercent,
+            taxRatePercent,
+            returnPolicy
+        } = req.body
+
+
+        if (title) {
+            product.title = title.trim()
+            let slugBase = generateSlug(title)
+            let slug = slugBase
+            let i = 1
+
+            while (await Product.findOne({ store: product.store, slug, _id: { $ne: product._id } })) {
+                slug = `${slugBase}-${i++}`
+            }
+            product.slug = slug
         }
 
-        const newImages = req.files
-            ?.filter(f => f.fieldname === "images")
+        if (description !== undefined)
+            product.description = description
+
+        if (shortDescription !== undefined)
+            product.shortDescription = shortDescription
+
+        if (brand !== undefined)
+            product.brand = brand
+
+        if (tags)
+            product.tags = JSON.parse(tags)
+
+        if (searchKeywords)
+            product.searchKeywords = JSON.parse(searchKeywords)
+
+        if (targetAudience)
+            product.targetAudience = targetAudience
+
+        if (sellerMode)
+            product.sellerMode = sellerMode
+
+        if (moq)
+            product.moq = Number(moq)
+
+        if (discountPercent !== undefined)
+            product.discountPercent = Number(discountPercent)
+
+        if (taxRatePercent !== undefined)
+            product.taxRatePercent = Number(taxRatePercent)
+
+        if (returnPolicy !== undefined)
+            product.returnPolicy = returnPolicy
+
+
+        const newImages =
+            req.files?.filter(f => f.fieldname === "images")
             .map(f => f.location) || []
 
-        const newVideos = req.files
-            ?.filter(f => f.fieldname === "videos")
+        const newVideos =
+            req.files?.filter(f => f.fieldname === "videos")
             .map(f => f.location) || []
-
 
         product.images.push(...newImages)
         product.videos.push(...newVideos)
 
-        const variantFiles = req.files
-            ?.filter(f => f.fieldname.startsWith("variantImages[")) || []
+        let variants = product.variants
+
+        if (req.body.variants) {
+            variants = JSON.parse(req.body.variants)
+        }
+
+        const variantFiles =
+            req.files?.filter(f =>
+                f.fieldname.startsWith("variantImages[")
+            ) || []
+
+        const groupedImages =
+            groupVariantImages(variantFiles)
 
 
-        const groupedImages = groupVariantImages(variantFiles);
+        const safeVariants =
+            variants.map(v => {
+                const oldVariant =
+                    product.variants.find(
+                        x => x.sku === v.sku
+                    )
+                return {
+                    sku: v.sku,
+                    title: v.title,
+                    price: Number(v.price),
+                    stock: Number(v.stock) || 0,
+                    color: v.color || "",
+                    size: v.size || "",
+                    compareAtPrice: v.compareAtPrice || null,
+                    costPrice: v.costPrice || null,
+                    attributes: v.attributes || [],
+                    images: [
+                        ...(oldVariant?.images || []),
+                        ...(groupedImages[v.sku] || [])
+                    ]
+                }
+            })
 
-        const safeVariants = variants.map(v => {
-            const oldVariant = product.variants.find(x => x.sku === v.sku)
-            return {
-                sku: v.sku,
-                title: v.title,
-                price: Number(v.price),
-                stock: Number(v.stock) || 0,
-                color: v.color || "",
-                size: v.size || "",
-                compareAtPrice: v.compareAtPrice || null,
-                costPrice: v.costPrice || null,
-                attributes: v.attributes || [],
-                images: [
-                    ...(oldVariant?.images || []),
-                    ...(groupedImages[v.sku] || [])
-                ]
-            }
-        })
+        product.variants = safeVariants
 
-        product.variants = safeVariants;
+        if (req.body.bulkPricing) {
+            product.bulkPricing =
+                JSON.parse(req.body.bulkPricing)
+        }
+
+        if (req.body.specifications) {
+            product.specifications =
+                JSON.parse(req.body.specifications)
+        }
+
+
         await product.save()
         return res.status(200).json({
             message: "Product updated successfully",
@@ -304,6 +408,13 @@ async function deleteProduct(req, res) {
         const seller = await Seller.findOne({
             user: req.user._id
         })
+
+        if (!seller) {
+            return res.status(404).json({
+                message: "Seller not found"
+            })
+        }
+
         const product = await Product.findOne({
             _id: id,
             seller: seller._id
@@ -313,13 +424,15 @@ async function deleteProduct(req, res) {
                 message: "Product not found"
             })
         }
-        let keys = [
+
+        const keys = [
             ...extractKeysFromUrls(product.images),
             ...extractKeysFromUrls(product.videos),
             ...product.variants.flatMap(v =>
                 extractKeysFromUrls(v.images)
             )
         ]
+        // console.log("Deleting files:", keys)
         await deleteS3Files(keys)
         await Product.deleteOne({ _id: id })
         res.json({

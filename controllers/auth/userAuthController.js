@@ -117,10 +117,6 @@ async function login(req, res) {
   }
 }
 
-function me(req, res) {
-  return res.status(200).json({ user: req.user });
-}
-
 /**
  * Send OTP to user's email address
  * Used for email verification, password reset, and other verification flows
@@ -432,7 +428,6 @@ async function loginWithPhoneOtp(req, res) {
 module.exports = {
   register,
   login,
-  me,
   sendEmailOtp,
   verifyEmail,
   sendSmsOtp,

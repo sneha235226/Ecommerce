@@ -1,28 +1,35 @@
 const express = require("express");
-const { requireAuth } = require("../../middleware/auth");
+const { requireAuth, requireUserAuth } = require("../../middleware/auth");
+const cartRoutes = require("./cartRoutes");
+const orderRoutes = require("./orderRoutes");
+const wishlistRoutes = require("./wishlistRoutes"); 
 const {
-  createUser,
-  getUsers,
-  getUserById,
-  updateUser,
-  deleteUser,
+    getMyProfile,
+    updateProfile,
+    changePassword,
+    getAddresses,
+    addAddress,
+    updateAddress,
+    deleteAddress,
+    setDefaultAddress,
+    deleteAccount
 } = require("../../controllers/user/userController");
-
 const router = express.Router();
-
-function requireAdmin(req, res, next) {
-  if (req.user?.role !== "admin") {
-    return res.status(403).json({ message: "Admin access required" });
-  }
-  return next();
-}
 
 router.use(requireAuth);
 
-router.post("/", createUser);
-router.get("/", requireAdmin, getUsers);
-router.get("/:id", getUserById);
-router.patch("/:id", updateUser);
-router.delete("/:id", requireAdmin, deleteUser);
+router.get("/me",requireUserAuth, getMyProfile);
+router.patch("/profile",requireUserAuth, updateProfile);
+router.patch("/password",requireUserAuth, changePassword);
+router.get("/addresses", requireUserAuth, getAddresses);
+router.post("/addresses", requireUserAuth, addAddress);
+router.patch("/addresses/:addressId", requireUserAuth, updateAddress);
+router.delete("/addresses/:addressId", requireUserAuth, deleteAddress);
+router.patch("/addresses/:addressId/default", requireUserAuth, setDefaultAddress);
+router.delete("/delete-account", requireUserAuth, deleteAccount);
+
+router.use("/cart", cartRoutes);
+router.use("/order", orderRoutes);
+router.use("/wishlist", wishlistRoutes);
 
 module.exports = router;

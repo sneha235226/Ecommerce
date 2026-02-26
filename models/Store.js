@@ -3,8 +3,6 @@ const mongoose = require("mongoose");
 const storeSchema = new mongoose.Schema(
   {
     seller: { type: mongoose.Schema.Types.ObjectId, ref: "Seller", required: true, index: true },
-    name: { type: String, trim: true, required: true },
-    slug: { type: String, trim: true, lowercase: true, unique: true, required: true },
     description: { type: String, trim: true, default: "" },
     logoUrl: { type: String, trim: true, default: "" },
     bannerUrl: { type: String, trim: true, default: "" },
