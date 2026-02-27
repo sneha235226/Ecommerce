@@ -12,6 +12,7 @@ const {
   deleteSeller,
   verifySellerBusinessPan,
 } = require("../../controllers/seller/sellerController");
+const flagRoutes = require("./flagRoutes");
 
 const router = express.Router();
 
@@ -35,6 +36,7 @@ router.post("/verify-pan", requireSellerAuth, verifySellerBusinessPan);
 router.use("/products", requireAuth, requireSellerAuth, productRoutes);
 router.use("/store", requireAuth, requireSellerAuth, storeRoutes);
 router.use("/orders", requireAuth, requireSellerAuth, orderRoutes);
+router.use("/flags", requireAuth, requireSellerAuth, flagRoutes);
 
 // Admin
 router.get("/", requireAuth, requireAdmin, listSellers);

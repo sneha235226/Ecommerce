@@ -72,6 +72,14 @@ const userSchema = new mongoose.Schema(
     passwordResetOtpExpires: { type: Date, default: null, select: false },
     passwordResetToken: { type: String, default: null, select: false },
     passwordResetExpires: { type: Date, default: null, select: false },
+    flagCount: {
+      type: Number,
+      default: 0
+    },
+    isSuspicious: {
+      type: Boolean,
+      default: false
+    }
   },
   { timestamps: true, collection: "users" }
 );

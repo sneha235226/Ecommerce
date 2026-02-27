@@ -90,8 +90,12 @@ async function login(req, res) {
 
     const user = await User.findOne({ $or: identifiers });
 
-    if (!user || user.isActive === false) {
+    if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    if (!user.isActive) {
+      return res.status(401).json({ message: "Account is inactive. Please contact admin for more information or create new account" });
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
@@ -142,7 +146,7 @@ async function sendEmailOtp(req, res) {
 
     // Generate OTP
     const { otp, hashedOtp } = generateOtp();
-    
+
     // Update user with OTP
     await User.findByIdAndUpdate(user._id, {
       emailVerificationOtp: hashedOtp,
@@ -242,7 +246,7 @@ async function sendSmsOtp(req, res) {
 
     // Generate OTP
     const { otp, hashedOtp } = generateOtp();
-    
+
     // Update user with OTP
     await User.findByIdAndUpdate(user._id, {
       phoneVerificationOtp: hashedOtp,
