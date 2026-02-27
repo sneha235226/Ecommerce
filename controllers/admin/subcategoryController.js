@@ -55,11 +55,8 @@ async function createSubcategory(req, res) {
         res.status(500).json({
             message: "Creation failed",
             error: error.message
-
         });
-
     }
-
 }
 
 async function getSubcategories(req, res) {

@@ -123,7 +123,7 @@ async function blockUser(req, res) {
             }
         )
         res.json({
-            message: "User blocked"
+            message: "User blocked successfully"
         })
     }
     catch (error) {
@@ -144,7 +144,7 @@ async function unblockUser(req, res) {
             }
         )
         res.json({
-            message: "User unblocked"
+            message: "User unblocked successfully"
         })
     }
     catch (error) {

@@ -224,10 +224,35 @@ async function getMySellerProfile(req, res) {
 
 async function listSellers(req, res) {
   try {
-    const sellers = await Seller.find().sort({ createdAt: -1 });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || "";
+
+    let query = {};
+
+    if (search) {
+      query.$or = [
+        { businessName: { $regex: search, $options: "i" } },
+        { legalBusinessName: { $regex: search, $options: "i" } },
+        { contactEmail: { $regex: search, $options: "i" } },
+        { contactPhone: { $regex: search, $options: "i" } }
+      ];
+    }
+
+    const [sellers, total] = await Promise.all([
+      Seller.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Seller.countDocuments(query)
+    ]);
 
     return res.status(200).json({
-      count: sellers.length,
+      page,
+      limit,
+      totalSellers: total,
+      totalPages: Math.ceil(total / limit),
       sellers
     });
 
