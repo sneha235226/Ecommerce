@@ -326,11 +326,11 @@ async function updateProduct(req, res) {
 
         const newImages =
             req.files?.filter(f => f.fieldname === "images")
-            .map(f => f.location) || []
+                .map(f => f.location) || []
 
         const newVideos =
             req.files?.filter(f => f.fieldname === "videos")
-            .map(f => f.location) || []
+                .map(f => f.location) || []
 
         product.images.push(...newImages)
         product.videos.push(...newVideos)
@@ -517,11 +517,126 @@ async function getProductById(req, res) {
     }
 }
 
+async function updateStock(req, res) {
+    try {
+        const { id } = req.params
+        const { variantId, stock } = req.body
+
+        if (stock === undefined || !variantId) {
+            return res.status(400).json({ message: "variantId and stock required" })
+        }
+
+        if (Number(stock) < 0) {
+            return res.status(400).json({ message: "Stock cannot be negative" })
+        }
+
+        const seller = await Seller.findOne({ user: req.user._id })
+        if (!seller) {
+            return res.status(404).json({ message: "Seller not found" })
+        }
+
+        const product = await Product.findOne({ _id: id, seller: seller._id })
+        if (!product) {
+            return res.status(404).json({ message: "Product not found" })
+        }
+
+        const variant = product.variants.id(variantId)
+        if (!variant) {
+            return res.status(404).json({ message: "Variant not found" })
+        }
+
+        variant.stock = Number(stock)
+        await product.save()
+        return res.status(200).json({
+            message: "Stock updated successfully",
+            variantId,
+            newStock: variant.stock,
+            totalStock: product.totalStock
+        })
+    } catch (error) {
+        return res.status(500).json({
+            message: "Stock update failed",
+            error: error.message
+        })
+    }
+}
+
+async function getLowStockProducts(req, res) {
+    try {
+        const seller = await Seller.findOne({ user: req.user._id })
+        if (!seller) {
+            return res.status(404).json({ message: "Seller not found" })
+        }
+
+        const page = Number(req.query.page) || 1
+        const limit = Number(req.query.limit) || 10
+        const skip = (page - 1) * limit
+
+        const pipeline = [
+            { $match: { seller: seller._id } },
+            {
+                $addFields: {
+                    lowStockVariants: {
+                        $filter: {
+                            input: "$variants",
+                            as: "v",
+                            cond: { $lte: ["$$v.stock", "$lowStockThreshold"] }
+                        }
+                    }
+                }
+            },
+            { $match: { "lowStockVariants.0": { $exists: true } } },
+            { $sort: { createdAt: -1 } },
+            { $skip: skip },
+            { $limit: limit }
+        ]
+
+        const countPipeline = [
+            { $match: { seller: seller._id } },
+            {
+                $addFields: {
+                    lowStockVariants: {
+                        $filter: {
+                            input: "$variants",
+                            as: "v",
+                            cond: { $lte: ["$$v.stock", "$lowStockThreshold"] }
+                        }
+                    }
+                }
+            },
+            { $match: { "lowStockVariants.0": { $exists: true } } },
+            { $count: "total" }
+        ]
+
+        const [products, countResult] = await Promise.all([
+            Product.aggregate(pipeline),
+            Product.aggregate(countPipeline)
+        ])
+
+        const total = countResult[0]?.total || 0
+
+        return res.status(200).json({
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit),
+            products
+        })
+
+    } catch (error) {
+        return res.status(500).json({
+            message: "Fetch failed",
+            error: error.message
+        })
+    }
+}
 
 module.exports = {
     createProduct,
     updateProduct,
     deleteProduct,
     getAllMyProducts,
-    getProductById
+    getProductById,
+    updateStock,
+    getLowStockProducts
 }

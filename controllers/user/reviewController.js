@@ -16,7 +16,6 @@ function extractKeysFromUrls(urls = []) {
 
 }
 
-
 async function deleteS3Files(files) {
     if (!files || !files.length) return;
     try {

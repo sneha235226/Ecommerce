@@ -175,6 +175,19 @@ async function updateQuantity(req, res) {
             })
         }
 
+        const variant = product.variants.id(item.variantId)
+        if (!variant) {
+            return res.status(404).json({
+                message: "Variant not found"
+            })
+        }
+
+        if (quantity > variant.stock) {
+            return res.status(400).json({
+                message: `Only ${variant.stock} units available`
+            })
+        }
+
         if (product.sellerMode === "wholesale") {
             if (quantity < product.moq) {
                 return res.status(400).json({
@@ -329,15 +342,15 @@ async function checkoutCart(req, res) {
         }
 
         const order = await Order.create({
-                user: userId,
-                orderNumber: generateOrderNumber(),
-                items: orderItems,
-                shippingAddress,
-                billingAddress,
-                paymentMethod,
-                subtotal,
-                grandTotal: subtotal
-            });
+            user: userId,
+            orderNumber: generateOrderNumber(),
+            items: orderItems,
+            shippingAddress,
+            billingAddress,
+            paymentMethod,
+            subtotal,
+            grandTotal: subtotal
+        });
 
 
         cart.items = [];

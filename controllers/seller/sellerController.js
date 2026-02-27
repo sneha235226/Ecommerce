@@ -1,5 +1,7 @@
 const Seller = require("../../models/Seller");
+const Store = require("../../models/Store");
 const User = require("../../models/User");
+const Product = require("../../models/Product");
 const { verifyPanDetails } = require("../../services/sandboxClient");
 
 const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
@@ -101,8 +103,8 @@ function applySellerUpdate(seller, input) {
   if (seller.panDetails?.panNumber) {
     seller.panDetails.panNumber =
       String(seller.panDetails.panNumber)
-      .trim()
-      .toUpperCase();
+        .trim()
+        .toUpperCase();
   }
 }
 
@@ -193,8 +195,8 @@ async function createSeller(req, res) {
     if (payload.panDetails.panNumber) {
       payload.panDetails.panNumber =
         String(payload.panDetails.panNumber)
-        .trim()
-        .toUpperCase();
+          .trim()
+          .toUpperCase();
     }
 
     const seller = await Seller.create(payload);
@@ -297,8 +299,22 @@ async function deleteSeller(req, res) {
     }
 
     seller.status = "suspended";
-    await seller.save();
 
+    const store = await Store.findOne({ seller: seller._id });
+    if (store) {
+      store.isActive = false;
+      await store.save();
+    }
+
+    const products = await Product.find({ seller: seller._id });
+    if (products) {
+      products.forEach(product => {
+        product.isActive = false;
+        product.save();
+      });
+    }
+
+    await seller.save();
     return res.status(200).json({ message: "Seller deactivated", sellerId: seller._id });
   } catch (error) {
     return res.status(500).json({ message: "Unable to delete seller", error: error.message });

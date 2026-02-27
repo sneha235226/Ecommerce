@@ -2,7 +2,7 @@ const Product = require("../../models/Product");
 
 async function getProducts(req, res) {
     try {
-        const products = await Product.find({});
+        const products = await Product.find({isActive: true});
         return res.status(200).json({
             message: "Products fetched successfully",
             products
@@ -49,7 +49,7 @@ async function getProductBySubcategory(req, res) {
                 message: "Subcategory required"
             })
         }
-        const products = await Product.find({ subcategory });
+        const products = await Product.find({ subcategory, isActive: true });
         return res.status(200).json({
             message: "Products fetched successfully",
             products
@@ -70,7 +70,7 @@ async function getProductBySpecificStore(req, res) {
                 message: "Store required"
             })
         }
-        const products = await Product.find({ store });
+        const products = await Product.find({ store, isActive: true });
         return res.status(200).json({
             message: "Products fetched successfully",
             products

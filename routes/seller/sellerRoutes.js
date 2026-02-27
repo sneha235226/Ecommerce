@@ -9,8 +9,8 @@ const {
   getMySellerProfile,
   getSellerById,
   updateSeller,
-  deleteSeller,
   verifySellerBusinessPan,
+  deleteSeller
 } = require("../../controllers/seller/sellerController");
 const flagRoutes = require("./flagRoutes");
 
@@ -31,6 +31,7 @@ router.post("/", requireAuth, createSeller);
 router.get("/me", requireSellerAuth, getMySellerProfile);
 router.patch("/update", requireSellerAuth, updateSeller);
 router.post("/verify-pan", requireSellerAuth, verifySellerBusinessPan);
+router.delete("/delete", requireSellerAuth, deleteSeller);  
 
 // Nested routes
 router.use("/products", requireAuth, requireSellerAuth, productRoutes);
@@ -40,7 +41,7 @@ router.use("/flags", requireAuth, requireSellerAuth, flagRoutes);
 
 // Admin
 router.get("/", requireAuth, requireAdmin, listSellers);
-router.delete("/:id", requireAuth, requireAdmin, deleteSeller);
 router.get("/:id", requireAuth, requireAdmin, getSellerById);
+
 
 module.exports = router;

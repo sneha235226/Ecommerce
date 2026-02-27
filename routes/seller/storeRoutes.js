@@ -25,6 +25,4 @@ router.put(
   updateStore
 );
 
-router.delete("/delete", deleteStore);
-
 module.exports = router;

@@ -24,7 +24,6 @@ const storeSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-storeSchema.index({ name: "text", description: "text" });
 storeSchema.index({ seller: 1, createdAt: -1 });
 storeSchema.index({ location: "2dsphere" });
 

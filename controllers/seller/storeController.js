@@ -33,11 +33,8 @@ async function deleteFileByUrl(url) {
 async function createStore(req, res) {
     try {
         const { description, serviceablePostalCodes, returnPolicy } = req.body;
-
         const seller = req.seller;
-
-        const existingStore =
-        await Store.findOne({
+        const existingStore = await Store.findOne({
             seller: seller._id
         });
 
@@ -107,7 +104,6 @@ async function getStore(req, res) {
     }
 }
 
-
 async function updateStore(req, res) {
     try {
         const seller = await Seller.findOne({ user: req.user._id });
@@ -162,48 +158,8 @@ async function updateStore(req, res) {
     }
 }
 
-async function deleteStore(req, res) {
-    try {
-        const seller = await Seller.findOne({
-            user: req.user._id
-        });
-
-        if (!seller) {
-            return res.status(404).json({
-                message: "Seller not found"
-            });
-        }
-
-        const store = await Store.findOne({
-            seller: seller._id
-        });
-        if (!store) {
-            return res.status(404).json({
-                message: "Store not found"
-            });
-        }
-
-        await deleteFileByUrl(store.logoUrl);
-        await deleteFileByUrl(store.bannerUrl);
-        await Store.deleteOne({
-            _id: store._id
-        });
-
-        return res.status(200).json({
-            message: "Store deleted successfully"
-        });
-    }
-    catch (error) {
-        return res.status(500).json({
-            message: "Delete failed",
-            error: error.message
-        });
-    }
-}
-
 module.exports = {
     createStore,
     getStore,
-    updateStore,
-    deleteStore
+    updateStore
 };
