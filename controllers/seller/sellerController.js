@@ -8,7 +8,6 @@ const { getobject } = require("../../config/s3");
 const axios = require("axios");
 const { sendGSTOtp, verifyGSTOtp } = require("../../services/gstService");
 
-
 const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 const DATE_YYYY_MM_DD_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const DATE_DD_MM_YYYY_REGEX = /^\d{2}-\d{2}-\d{4}$/;
@@ -435,16 +434,16 @@ async function verifySellerBusinessPan(req, res) {
 async function sendOtpGst(req, res) {
   try {
     const { gstNumber } = req.body;
-    const data = await sendGSTOtp(gstNumber);
-    if (!data) {
+    const response = await sendGSTOtp(gstNumber);
+
+    if (!response) {
       return res.status(400).json({
         message: "Failed to send OTP"
       });
     }
-    return res.status(200).json({
-      message: "OTP sent successfully",
-      data
-    });
+
+    return res.status(200).json(response);
+
   } catch (error) {
     return res.status(500).json({
       message: error.message
@@ -455,16 +454,19 @@ async function sendOtpGst(req, res) {
 async function verifyOtpGst(req, res) {
   try {
     const { gstNumber, otp } = req.body;
-    const data = await verifyGSTOtp(gstNumber, otp);
-    if (!data) {
+    const response = await verifyGSTOtp(gstNumber, otp);
+
+    if (!response) {
       return res.status(400).json({
         message: "OTP verification failed"
       });
     }
-    return res.status(200).json({
-      message: "GST verified successfully",
-      data
-    });
+
+    await Seller.findOneAndUpdate(
+      { user: req.user._id },
+      { gstVerified: true }
+    );
+    return res.status(200).json(response);
   } catch (error) {
     return res.status(500).json({
       message: error.message
@@ -591,7 +593,6 @@ async function getAadhaarById(req, res) {
       });
     }
 
-    // Generate download URL if upload key exists
     let downloadUrl = null;
     if (aadhaar.aadhaarUploadKey) {
       downloadUrl = await getobject(aadhaar.aadhaarUploadKey);

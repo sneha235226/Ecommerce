@@ -1,55 +1,139 @@
-const axios = require("axios");
+const https = require("https");
+const crypto = require("crypto");
 
-// Send OTP
-const sendGSTOtp = async (gstNumber) => {
-    try {
-        const response = await axios.post(
-            `${process.env.SANDBOX_BASE_URL}/gst/verify/otp`,
-            {
-                gstin: gstNumber
-            },
-            {
-                headers: {
-                    "x-api-key": process.env.SANDBOX_API_KEY,
-                    "x-api-secret": process.env.SANDBOX_API_SECRET,
-                    "Content-Type": "application/json"
-                }
-            }
-        );
-        return response.data;
-    } catch (error) {
-        console.log("GST OTP Error");
-        console.log(error.response?.data || error.message);
-        return null;
-    }
-};
+const {
+    SANDBOX_API_KEY,
+    SANDBOX_API_SECRET,
+    SANDBOX_API_BASE_URL = "https://api.sandbox.co.in",
+    SANDBOX_API_VERSION = "2.0"
+} = process.env;
 
-// Verify OTP
-const verifyGSTOtp = async (gstNumber, otp) => {
-    try {
-        const response = await axios.post(
-            `${process.env.SANDBOX_BASE_URL}/gst/verify`,
-            {
-                gstin: gstNumber,
-                otp: otp
-            },
-            {
-                headers: {
-                    "x-api-key": process.env.SANDBOX_API_KEY,
-                    "x-api-secret": process.env.SANDBOX_API_SECRET,
-                    "Content-Type": "application/json"
-                }
-            }
-        );
-        return response.data;
-    } catch (error) {
-        console.log("GST Verify Error");
-        console.log(error.response?.data || error.message);
-        return null;
-    }
-};
+
+function sha256(data) {
+    return crypto.createHash("sha256").update(data).digest("hex");
+}
+
+function sign(secret, data) {
+    return crypto.createHmac("sha256", secret).update(data).digest("base64");
+}
+
+
+
+function buildHeaders(payload) {
+    const date = new Date().toISOString();
+    const payloadHash = sha256(payload);
+    const signature = sign(
+        SANDBOX_API_SECRET,
+        payloadHash + date
+    );
+
+    return {
+        "x-api-key": SANDBOX_API_KEY,
+        "x-api-version": SANDBOX_API_VERSION,
+        "x-amz-date": date,
+        Authorization: signature,
+        "Content-Type": "application/json"
+    };
+}
+
+
+
+function request(path, body) {
+
+    const payload = JSON.stringify(body);
+
+    const headers = buildHeaders(payload);
+
+    return new Promise((resolve, reject) => {
+
+        const req = https.request({
+
+            hostname: "api.sandbox.co.in",
+
+            path,
+
+            method: "POST",
+
+            headers
+
+        },
+
+            res => {
+
+                let data = "";
+
+                res.on("data", chunk => data += chunk);
+
+                res.on("end", () => {
+
+                    resolve(JSON.parse(data));
+
+                });
+
+            });
+
+        req.on("error", reject);
+
+        req.write(payload);
+
+        req.end();
+
+    });
+
+}
+
+
+
+//
+// SEND GST OTP
+//
+
+async function sendGSTOtp(gstin) {
+
+    return request(
+
+        "/gst/verify/otp",
+
+        {
+
+            gstin
+
+        }
+
+    );
+
+}
+
+
+
+//
+// VERIFY GST OTP
+//
+
+async function verifyGSTOtp(gstin, otp) {
+
+    return request(
+
+        "/gst/verify",
+
+        {
+
+            gstin,
+
+            otp
+
+        }
+
+    );
+
+}
+
+
 
 module.exports = {
+
     sendGSTOtp,
+
     verifyGSTOtp
+
 };
