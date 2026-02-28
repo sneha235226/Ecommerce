@@ -22,11 +22,10 @@ const sellerSchema = new mongoose.Schema(
     legalBusinessName: { type: String, trim: true, default: "" },
     contactEmail: { type: String, trim: true, lowercase: true, default: "" },
     contactPhone: { type: String, trim: true, default: "" },
-    gstNumber: { type: String, trim: true, default: "" },
-    panDetails: {
-      panNumber: { type: String, trim: true, uppercase: true, default: "" },
-      nameAsPerPan: { type: String, trim: true, default: "" },
-      dateOfIncorporation: { type: String, trim: true, default: "" },
+    gstNumber: String,
+    gstVerified: {
+      type: Boolean,
+      default: false
     },
     businessAddress: {
       line1: { type: String, trim: true, default: "" },

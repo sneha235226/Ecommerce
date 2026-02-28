@@ -2,7 +2,12 @@ const Seller = require("../../models/Seller");
 const Store = require("../../models/Store");
 const User = require("../../models/User");
 const Product = require("../../models/Product");
-const { verifyPanDetails } = require("../../services/sandboxClient");
+const { verifyPanDetails, generateAadhaarOtp, verifyAadhaarOtp } = require("../../services/sandboxClient");
+const Aadhaar = require("../../models/Aadhaar");
+const { getobject } = require("../../config/s3");
+const axios = require("axios");
+const { sendGSTOtp, verifyGSTOtp } = require("../../services/gstService");
+
 
 const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 const DATE_YYYY_MM_DD_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -11,6 +16,10 @@ const DATE_DD_SLASH_MM_SLASH_YYYY_REGEX = /^\d{2}\/\d{2}\/\d{4}$/;
 
 function isAdmin(user) {
   return user?.constructor?.modelName === "Admin";
+}
+
+function isValidAadhaar(aadharCardNumber) {
+  return /^[0-9]{12}$/.test(aadharCardNumber);
 }
 
 function buildDateCandidates(input) {
@@ -423,6 +432,183 @@ async function verifySellerBusinessPan(req, res) {
   }
 }
 
+async function sendOtpGst(req, res) {
+  try {
+    const { gstNumber } = req.body;
+    const data = await sendGSTOtp(gstNumber);
+    if (!data) {
+      return res.status(400).json({
+        message: "Failed to send OTP"
+      });
+    }
+    return res.status(200).json({
+      message: "OTP sent successfully",
+      data
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: error.message
+    });
+  }
+}
+
+async function verifyOtpGst(req, res) {
+  try {
+    const { gstNumber, otp } = req.body;
+    const data = await verifyGSTOtp(gstNumber, otp);
+    if (!data) {
+      return res.status(400).json({
+        message: "OTP verification failed"
+      });
+    }
+    return res.status(200).json({
+      message: "GST verified successfully",
+      data
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: error.message
+    });
+  }
+}
+
+async function sendAadhaarOtp(req, res) {
+  try {
+    const { consent = "Y", userId, aadharCardNumber } = req.body || {};
+    const reason = "KYC_Verification";
+
+    if (!userId) {
+      return res.status(400).json({
+        ok: false,
+        message: "userId is required"
+      });
+    }
+
+    const user = await User.findById(userId).select("_id");
+    if (!user) {
+      return res.status(404).json({
+        ok: false,
+        message: "User not found"
+      });
+    }
+
+    if (!isValidAadhaar(aadharCardNumber)) {
+      return res.status(400).json({
+        ok: false,
+        message: "aadharCardNumber must be 12 digits"
+      });
+    }
+
+    const result = await generateAadhaarOtp({ aadhaarNumber: aadharCardNumber, reason, consent });
+    return res.status(result.status || 200).json(result.data);
+  } catch (err) {
+    return res.status(500).json({ ok: false, message: err.message });
+  }
+}
+
+async function verifyOtpAadhar(req, res) {
+  try {
+    const { reference_id, otp, userId, aadharCardNumber } = req.body || {};
+
+    if (!reference_id) {
+      return res.status(400).json({
+        ok: false,
+        message: "reference_id is required"
+      });
+    }
+
+    if (!otp) {
+      return res.status(400).json({
+        ok: false,
+        message: "otp is required"
+      });
+    }
+
+    if (!userId) {
+      return res.status(400).json({
+        ok: false,
+        message: "userId is required"
+      });
+    }
+
+    if (!aadharCardNumber || !isValidAadhaar(aadharCardNumber)) {
+      return res.status(400).json({
+        ok: false,
+        message: "aadharCardNumber must be 12 digits"
+      });
+    }
+
+    const result = await verifyAadhaarOtp({ reference_id, otp });
+
+    const status = String(result?.data?.data?.status || "").toUpperCase();
+    const isValid = status === "VALID";
+
+    const user = await User.findById(userId).select(
+      "firstName lastName dob phoneNumber gender"
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        ok: false,
+        message: "User not found"
+      });
+    }
+
+    const aadhaar = await Aadhaar.findOneAndUpdate(
+      { userId },
+      {
+        $set: {
+          aadharCardNumber,
+          isAadharVerifed: isValid,
+          aadhaarKycResponse: result.data
+        }
+      },
+      { new: true, upsert: true }
+    );
+
+    await User.findByIdAndUpdate(userId, { isAadhaarVerifed: isValid });
+
+    const response = {
+      ...result.data,
+      user,
+      aadhaar
+    };
+    return res.status(result.status || 200).json(response);
+  } catch (err) {
+    return res.status(500).json({ ok: false, message: err.message });
+  }
+}
+
+async function getAadhaarById(req, res) {
+  try {
+    const { id } = req.params;
+    const aadhaar = await Aadhaar.findById(id);
+
+    if (!aadhaar) {
+      return res.status(404).json({
+        ok: false,
+        message: "Aadhaar not found"
+      });
+    }
+
+    // Generate download URL if upload key exists
+    let downloadUrl = null;
+    if (aadhaar.aadhaarUploadKey) {
+      downloadUrl = await getobject(aadhaar.aadhaarUploadKey);
+    }
+
+    return res.status(200).json({
+      ok: true,
+      data: {
+        ...aadhaar.toObject(),
+        downloadUrl
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ ok: false, message: err.message });
+  }
+}
+
 module.exports = {
   createSeller,
   listSellers,
@@ -431,4 +617,9 @@ module.exports = {
   updateSeller,
   deleteSeller,
   verifySellerBusinessPan,
+  sendAadhaarOtp,
+  verifyOtpAadhar,
+  getAadhaarById,
+  sendOtpGst,
+  verifyOtpGst
 };

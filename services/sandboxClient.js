@@ -80,6 +80,43 @@ async function getAccessToken() {
   return token;
 }
 
+async function generateAadhaarOtp({ aadhaarNumber, consent = "Y", reason }) {
+  const token = await getAccessToken();
+  return requestJson(
+    "POST",
+    "/kyc/aadhaar/okyc/otp",
+    {
+      Authorization: token,
+      "x-api-key": SANDBOX_API_KEY,
+      "x-api-version": SANDBOX_API_VERSION
+    },
+    {
+      "@entity": "in.co.sandbox.kyc.aadhaar.okyc.otp.request",
+      aadhaar_number: aadhaarNumber,
+      consent,
+      reason
+    }
+  );
+}
+
+async function verifyAadhaarOtp({ reference_id, otp }) {
+  const token = await getAccessToken();
+  return requestJson(
+    "POST",
+    "/kyc/aadhaar/okyc/otp/verify",
+    {
+      Authorization: token,
+      "x-api-key": SANDBOX_API_KEY,
+      "x-api-version": SANDBOX_API_VERSION
+    },
+    {
+      "@entity": "in.co.sandbox.kyc.aadhaar.okyc.request",
+      reference_id,
+      otp
+    }
+  );
+}
+
 async function verifyPanDetails({
   pan,
   nameAsPerPan,
@@ -99,19 +136,23 @@ async function verifyPanDetails({
     headers["x-accept-cache"] = String(acceptCache);
   }
 
-  const payload = {
-    "@entity": "in.co.sandbox.kyc.pan_verification.request",
-    pan,
-    consent,
-    reason
-  };
-
-  if (nameAsPerPan) payload.name_as_per_pan = nameAsPerPan;
-  if (dateOfBirth) payload.date_of_birth = dateOfBirth;
-
-  return requestJson("POST", "/kyc/pan/verify", headers, payload);
+  return requestJson(
+    "POST",
+    "/kyc/pan/verify",
+    headers,
+    {
+      "@entity": "in.co.sandbox.kyc.pan_verification.request",
+      pan,
+      name_as_per_pan: nameAsPerPan,
+      date_of_birth: dateOfBirth,
+      consent,
+      reason
+    }
+  );
 }
 
 module.exports = {
+  generateAadhaarOtp,
+  verifyAadhaarOtp,
   verifyPanDetails
 };

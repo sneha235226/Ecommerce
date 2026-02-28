@@ -91,30 +91,30 @@ async function requireAdminAuth(req, res, next) {
   }
 }
 
-async function requireSellerAuth(req,res,next){
+async function requireSellerAuth(req, res, next) {
 
-  const result = await verifyTokenAndAttachUser(req,res);
+  const result = await verifyTokenAndAttachUser(req, res);
 
- if(result.error){
-   return res.status(result.error.status)
-   .json({message:result.error.message});
- }
+  if (result.error) {
+    return res.status(result.error.status)
+      .json({ message: result.error.message });
+  }
 
- const seller = await Seller.findOne({
-   user:result.user._id
- });
+  const seller = await Seller.findOne({
+    user: result.user._id
+  });
 
- if(!seller){
-   return res.status(403).json({
-     message:"Seller account required"
-   });
- }
+  if (!seller) {
+    return res.status(403).json({
+      message: "Seller account required"
+    });
+  }
 
- req.user=result.user;
- req.tokenPayload=result.decoded;
- req.seller=seller;
+  req.user = result.user;
+  req.tokenPayload = result.decoded;
+  req.seller = seller;
 
- next();
+  next();
 }
 
-module.exports = { requireAuth, requireUserAuth, requireAdminAuth, requireSellerAuth};
+module.exports = { requireAuth, requireUserAuth, requireAdminAuth, requireSellerAuth };

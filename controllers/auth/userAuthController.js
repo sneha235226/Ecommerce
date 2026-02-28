@@ -98,6 +98,14 @@ async function login(req, res) {
       return res.status(401).json({ message: "Account is inactive. Please contact admin for more information or create new account" });
     }
 
+    if(user.isEmailVerified === false && email) {
+      return res.status(403).json({ message: "Email not verified. Please verify your email before logging in." });
+    }
+
+    if(user.isPhoneVerified === false && phone) {
+      return res.status(403).json({ message: "Phone number not verified. Please verify your phone number before logging in." });
+    }
+
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
       return res.status(401).json({ message: "Invalid credentials" });

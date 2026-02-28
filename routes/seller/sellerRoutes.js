@@ -1,5 +1,5 @@
 const express = require("express");
-const { requireAuth, requireSellerAuth } = require("../../middleware/auth");
+const { requireAuth, requireSellerAuth, requireUserAuth } = require("../../middleware/auth");
 const productRoutes = require("./productRoutes");
 const storeRoutes = require("./storeRoutes");
 const orderRoutes = require("./orderRoutes");
@@ -10,7 +10,12 @@ const {
   getSellerById,
   updateSeller,
   verifySellerBusinessPan,
-  deleteSeller
+  deleteSeller,
+  sendAadhaarOtp,
+  verifyOtpAadhar,
+  getAadhaarById,
+  sendOtpGst,
+  verifyOtpGst
 } = require("../../controllers/seller/sellerController");
 const flagRoutes = require("./flagRoutes");
 
@@ -31,7 +36,12 @@ router.post("/", requireAuth, createSeller);
 router.get("/me", requireSellerAuth, getMySellerProfile);
 router.patch("/update", requireSellerAuth, updateSeller);
 router.post("/verify-pan", requireSellerAuth, verifySellerBusinessPan);
-router.delete("/delete", requireSellerAuth, deleteSeller);  
+router.post("/send-gst-otp", sendOtpGst);
+router.post("/verify-gst-otp", verifyOtpGst);
+router.post("/otp", requireUserAuth, sendAadhaarOtp);
+router.post("/otp/verify", requireUserAuth, verifyOtpAadhar);
+router.get("/aadhaar/:id", requireUserAuth, getAadhaarById);
+router.delete("/delete", requireSellerAuth, deleteSeller);
 
 // Nested routes
 router.use("/products", requireAuth, requireSellerAuth, productRoutes);
