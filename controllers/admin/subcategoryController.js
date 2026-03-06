@@ -1,6 +1,6 @@
 const Subcategory = require("../../models/Subcategory");
 const Product = require("../../models/Product");
-const s3 = require("../../config/s3");
+const { s3Client } = require("../../config/s3");
 const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const Category = require("../../models/Category");
 
@@ -16,7 +16,7 @@ async function deleteFileByUrl(url) {
     if (!url) return;
     const key = url.split(".amazonaws.com/")[1];
     if (!key) return;
-    await s3.send(
+    await s3Client.send(
         new DeleteObjectCommand({
             Bucket: process.env.AWS_BUCKET_NAME,
             Key: key
@@ -43,7 +43,7 @@ async function createSubcategory(req, res) {
             name,
             slug,
             category,
-            imageUrl:req.file?.location || ""
+            imageUrl: req.file?.location || ""
         });
 
         res.status(201).json({
@@ -61,7 +61,7 @@ async function createSubcategory(req, res) {
 
 async function getSubcategories(req, res) {
     try {
-        const subcategories =await Subcategory.find().populate("category", "name");
+        const subcategories = await Subcategory.find().populate("category", "name");
         res.json({
             count: subcategories.length,
             subcategories
