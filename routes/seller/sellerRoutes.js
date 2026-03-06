@@ -3,6 +3,7 @@ const { requireAuth, requireSellerAuth, requireUserAuth } = require("../../middl
 const productRoutes = require("./productRoutes");
 const storeRoutes = require("./storeRoutes");
 const orderRoutes = require("./orderRoutes");
+const contactQueryRoutes = require("./contactQueryRoutes");
 const {
   createSeller,
   listSellers,
@@ -48,6 +49,7 @@ router.use("/products", requireAuth, requireSellerAuth, productRoutes);
 router.use("/store", requireAuth, requireSellerAuth, storeRoutes);
 router.use("/orders", requireAuth, requireSellerAuth, orderRoutes);
 router.use("/flags", requireAuth, requireSellerAuth, flagRoutes);
+router.use("/contact", requireAuth, requireSellerAuth, contactQueryRoutes);
 
 // Admin
 router.get("/", requireAuth, requireAdmin, listSellers);

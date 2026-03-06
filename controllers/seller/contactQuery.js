@@ -1,0 +1,80 @@
+const ContactQuery = require("../../models/ContactQuery")
+const Seller = require("../../models/Seller")
+
+async function getSellerQueries(req, res) {
+    try {
+        const seller = await Seller.findOne({
+            user: req.user._id
+        })
+
+        const page = parseInt(req.query.page) || 1
+        const limit = parseInt(req.query.limit) || 10
+        const skip = (page - 1) * limit
+
+        const query = { seller: seller._id }
+
+        const queries = await ContactQuery.find(query)
+            .populate("product", "title images")
+            .populate("user", "firstName")
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+
+        const total = await ContactQuery.countDocuments(query)
+
+        return res.status(200).json({
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit),
+            queries
+        })
+    }
+    catch (error) {
+        return res.status(500).json({
+            message: "Fetch failed",
+            error: error.message
+        })
+    }
+}
+
+async function updateQueryStatus(req, res) {
+    try {
+        const { queryId } = req.params
+        const { status } = req.body
+
+        if (!["pending", "answered", "closed"].includes(status)) {
+            return res.status(400).json({
+                message: "Invalid status"
+            })
+        }
+
+        const query = await ContactQuery.findByIdAndUpdate(
+            queryId,
+            { status },
+            { new: true }
+        )
+
+        if (!query) {
+            return res.status(404).json({
+                message: "Query not found"
+            })
+        }
+
+        return res.status(200).json({
+            message: "Status updated successfully",
+            query
+        })
+    }
+    catch (error) {
+        return res.status(500).json({
+            message: "Update failed",
+            error: error.message
+        })
+    }
+}
+
+module.exports = {
+    getSellerQueries,
+    updateQueryStatus
+}
