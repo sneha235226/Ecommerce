@@ -4,6 +4,7 @@ const cartRoutes = require("./cartRoutes");
 const orderRoutes = require("./orderRoutes");
 const wishlistRoutes = require("./wishlistRoutes"); 
 const reviewRoutes = require("./reviewRoutes");
+const contactRoutes = require("./contactQueryRoutes");
 const {
     getMyProfile,
     updateProfile,
@@ -33,5 +34,6 @@ router.use("/cart", cartRoutes);
 router.use("/order", orderRoutes);
 router.use("/wishlist", wishlistRoutes);
 router.use("/review", reviewRoutes);
+router.use("/contact-query", contactRoutes);
 
 module.exports = router;
