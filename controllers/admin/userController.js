@@ -17,7 +17,7 @@ async function getUsers(req, res) {
                     { email: { $regex: search, $options: "i" } }
                 ]
             };
-        }
+        } 
 
         const [users, total] = await Promise.all([
             User.find(query)

@@ -1,5 +1,6 @@
 const Order = require("../../models/Order");
 const Product = require("../../models/Product");
+const { deriveOrderStatus } = require("../../utils/orderUtils");
 
 async function getSellerOrders(req, res) {
     try {
@@ -20,13 +21,24 @@ async function getSellerOrders(req, res) {
             query = { "items.seller": sellerId };
         }
 
-        const orders = await Order.find(query)
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limit)
-            .select("orderNumber items paymentMethod paymentStatus createdAt");
+        const [rawOrders, total] = await Promise.all([
+            Order.find(query)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .select("orderNumber items paymentMethod paymentStatus createdAt"),
+            Order.countDocuments(query)
+        ]);
 
-        const total = await Order.countDocuments(query);
+        const orders = rawOrders.map(order => ({
+            _id: order._id,
+            orderNumber: order.orderNumber,
+            paymentMethod: order.paymentMethod,
+            paymentStatus: order.paymentStatus,
+            createdAt: order.createdAt,
+            items: order.items.filter(item => String(item.seller) === String(sellerId))
+        }));
+
         res.status(200).json({
             page,
             limit,
@@ -79,15 +91,6 @@ async function getSellerOrderById(req, res) {
     }
 }
 
-function deriveOrderStatus(items) {
-    const statuses = items.map(i => i.status)
-    if (statuses.every(s => s === "delivered")) return "delivered"
-    if (statuses.every(s => s === "cancelled" || s === "rejected")) return "cancelled"
-    if (statuses.some(s => s === "shipped" || s === "delivered")) return "partially_shipped"
-    if (statuses.every(s => s === "placed" || s === "accepted" || s === "confirmed" || s === "packed" || s === "rejected" || s === "cancelled")) return "accepted"
-    return "placed"
-}
-
 async function updateOrderItemStatus(req, res) {
     try {
         const { orderId, itemId } = req.params
@@ -119,14 +122,10 @@ async function updateOrderItemStatus(req, res) {
         item.status = status
 
         if (status === "rejected" && prevStatus !== "rejected") {
-            const product = await Product.findById(item.product)
-            if (product) {
-                const variant = product.variants.id(item.variantId)
-                if (variant) {
-                    variant.stock += item.quantity
-                    await product.save()
-                }
-            }
+            await Product.updateOne(
+                { _id: item.product, "variants._id": item.variantId },
+                { $inc: { "variants.$.stock": item.quantity, totalStock: item.quantity } }
+            );
         }
 
         order.status = deriveOrderStatus(order.items)

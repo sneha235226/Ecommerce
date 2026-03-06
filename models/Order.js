@@ -72,6 +72,7 @@ const orderItemSchema = new mongoose.Schema(
       ],
       default: "placed",
     },
+    cancellationReason: { type: String, trim: true, default: "" },
   },
   { _id: true }
 );

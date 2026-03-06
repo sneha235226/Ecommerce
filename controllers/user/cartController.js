@@ -1,7 +1,18 @@
 const Cart = require("../../models/Cart");
 const Order = require("../../models/Order");
 const Product = require("../../models/Product");
+const { generateOrderNumber } = require("../../utils/orderUtils");
 
+function getBulkPrice(product, quantity, variantPrice) {
+    if (product.bulkPricingEnabled && product.bulkPricing.length) {
+        for (const tier of product.bulkPricing) {
+            if (quantity >= tier.minQty && (!tier.maxQty || quantity <= tier.maxQty)) {
+                return { price: tier.pricePerUnit, appliedTier: { minQty: tier.minQty, maxQty: tier.maxQty, unitPrice: tier.pricePerUnit } };
+            }
+        }
+    }
+    return { price: variantPrice, appliedTier: null };
+}
 
 function calculateTotals(cart) {
     let subtotal = 0
@@ -18,10 +29,6 @@ function calculateTotals(cart) {
         cart.shippingAmount +
         cart.taxAmount -
         cart.discountAmount
-}
-
-function generateOrderNumber() {
-    return "ORD-" + Date.now();
 }
 
 async function addToCart(req, res) {
@@ -56,14 +63,20 @@ async function addToCart(req, res) {
             })
         }
 
+        // B2B-only products cannot be added to a regular user cart
+        if (product.targetAudience === "B2B") {
+            return res.status(403).json({
+                message: "This product is only available for B2B orders"
+            })
+        }
+
         let finalQty = quantity || 1
-        if (product.sellerMode === "wholesale") {
-            if (finalQty < product.moq) {
-                return res.status(400).json({
-                    message: `Minimum order quantity is ${product.moq}`
-                })
-            }
-            finalQty = product.moq
+
+        // Enforce MOQ for wholesale-only products (hybrid allows retail quantities)
+        if (product.sellerMode === "wholesale" && finalQty < product.moq) {
+            return res.status(400).json({
+                message: `Minimum order quantity is ${product.moq}`
+            })
         }
 
         if (finalQty > variant.stock) {
@@ -72,6 +85,7 @@ async function addToCart(req, res) {
             })
         }
 
+        const pricing = getBulkPrice(product, finalQty, variant.price);
 
         let cart = await Cart.findOne({ user: userId })
         if (!cart) {
@@ -93,16 +107,19 @@ async function addToCart(req, res) {
                     message: `Only ${variant.stock} units available (already have ${existingItem.quantity} in cart)`
                 });
             }
+            const newPricing = getBulkPrice(product, newQty, variant.price);
             existingItem.quantity = newQty;
+            existingItem.unitPrice = newPricing.price;
+            existingItem.appliedTier = newPricing.appliedTier;
         } else {
-
             cart.items.push({
                 product: product._id,
                 store: product.store,
                 seller: product.seller,
                 variantId,
                 quantity: finalQty,
-                unitPrice: variant.price,
+                unitPrice: pricing.price,
+                appliedTier: pricing.appliedTier,
                 pricingMode: product.sellerMode,
                 titleSnapshot: product.title,
                 skuSnapshot: variant.sku,
@@ -194,15 +211,16 @@ async function updateQuantity(req, res) {
             })
         }
 
-        if (product.sellerMode === "wholesale") {
-            if (quantity < product.moq) {
-                return res.status(400).json({
-                    message: `Minimum quantity is ${product.moq}`
-                })
-            }
+        if (product.sellerMode === "wholesale" && quantity < product.moq) {
+            return res.status(400).json({
+                message: `Minimum quantity is ${product.moq}`
+            })
         }
 
-        item.quantity = quantity
+        const pricing = getBulkPrice(product, quantity, variant.price);
+        item.quantity = quantity;
+        item.unitPrice = pricing.price;
+        item.appliedTier = pricing.appliedTier;
         calculateTotals(cart)
         await cart.save()
         res.json({
@@ -327,14 +345,46 @@ async function checkoutCart(req, res) {
                 });
             }
 
+            // Re-validate MOQ at checkout time (wholesale only)
+            if (product.sellerMode === "wholesale" && item.quantity < product.moq) {
+                return res.status(400).json({
+                    message: `"${item.titleSnapshot}" requires a minimum quantity of ${product.moq}.`
+                });
+            }
+
             resolvedItems.push({ item, product, variant });
         }
 
         let orderItems = [];
         let subtotal = 0;
+        let hasWholesaleItem = false;
+        const stockDecrements = [];
 
         for (const { item, product, variant } of resolvedItems) {
-            const totalPrice = item.unitPrice * item.quantity;
+            const pricing = getBulkPrice(product, item.quantity, variant.price);
+            const unitPrice = pricing.price;
+            const totalPrice = unitPrice * item.quantity;
+
+            if (product.sellerMode !== "retail") hasWholesaleItem = true;
+
+            // Atomic decrement — prevents race conditions / overselling
+            const stockResult = await Product.updateOne(
+                { _id: item.product, "variants._id": item.variantId, "variants.stock": { $gte: item.quantity } },
+                { $inc: { "variants.$.stock": -item.quantity, totalStock: -item.quantity } }
+            );
+
+            if (stockResult.modifiedCount === 0) {
+                // Compensate all prior decrements before returning
+                for (const dec of stockDecrements) {
+                    await Product.updateOne(
+                        { _id: dec.productId, "variants._id": dec.variantId },
+                        { $inc: { "variants.$.stock": dec.qty, totalStock: dec.qty } }
+                    );
+                }
+                return res.status(400).json({ message: `Insufficient stock for "${item.titleSnapshot}". Please refresh your cart.` });
+            }
+
+            stockDecrements.push({ productId: item.product, variantId: item.variantId, qty: item.quantity });
 
             orderItems.push({
                 product: item.product,
@@ -342,30 +392,41 @@ async function checkoutCart(req, res) {
                 seller: item.seller,
                 variantId: item.variantId,
                 quantity: item.quantity,
-                unitPrice: item.unitPrice,
+                unitPrice,
                 totalPrice,
                 pricingMode: item.pricingMode,
-                appliedTier: item.appliedTier,
+                appliedTier: pricing.appliedTier,
                 titleSnapshot: item.titleSnapshot,
                 skuSnapshot: item.skuSnapshot,
                 imageSnapshot: item.imageSnapshot
             });
 
             subtotal += totalPrice;
-            variant.stock -= item.quantity;
-            await product.save();
         }
 
-        const order = await Order.create({
-            user: userId,
-            orderNumber: generateOrderNumber(),
-            items: orderItems,
-            shippingAddress,
-            billingAddress,
-            paymentMethod,
-            subtotal,
-            grandTotal: subtotal
-        });
+        let order;
+        try {
+            order = await Order.create({
+                user: userId,
+                orderType: hasWholesaleItem ? "B2B" : "B2C",
+                orderNumber: generateOrderNumber(),
+                items: orderItems,
+                shippingAddress,
+                billingAddress,
+                paymentMethod,
+                subtotal,
+                grandTotal: subtotal
+            });
+        } catch (err) {
+            // Restore all stock if order creation fails
+            for (const dec of stockDecrements) {
+                await Product.updateOne(
+                    { _id: dec.productId, "variants._id": dec.variantId },
+                    { $inc: { "variants.$.stock": dec.qty, totalStock: dec.qty } }
+                );
+            }
+            throw err;
+        }
 
         cart.items = [];
         cart.subtotal = 0;

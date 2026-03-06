@@ -1,9 +1,6 @@
 const Order = require("../../models/Order");
 const Product = require("../../models/Product");
-
-function generateOrderNumber() {
-    return "ORD-" + Date.now();
-}
+const { generateOrderNumber, deriveOrderStatus } = require("../../utils/orderUtils");
 
 function getBulkPrice(product, quantity, variantPrice) {
     let appliedTier = null;
@@ -42,15 +39,21 @@ async function buyNow(req, res) {
 
 
         const product = await Product.findById(productId);
-        if (!product)
+        if (!product || !product.isActive)
             return res.status(404).json({
                 message: "Product not found"
             });
 
+        // B2B-only products cannot be purchased via the regular user flow
+        if (product.targetAudience === "B2B") {
+            return res.status(403).json({
+                message: "This product is only available for B2B orders"
+            });
+        }
 
         const variant = product.variants.id(variantId);
 
-        if (!variant)
+        if (!variant || !variant.isActive)
             return res.status(404).json({
                 message: "Variant not found"
             });
@@ -58,7 +61,7 @@ async function buyNow(req, res) {
 
         let finalQty = quantity || 1;
         if (
-            product.sellerMode !== "retail" &&
+            product.sellerMode === "wholesale" &&
             finalQty < product.moq
         ) {
             return res.status(400).json({
@@ -104,21 +107,39 @@ async function buyNow(req, res) {
                 ""
         };
 
-        const subtotal = totalPrice;
-        const order = await Order.create({
-            user: userId,
-            orderType: product.sellerMode === "retail" ? "B2C" : "B2B",
-            orderNumber: generateOrderNumber(),
-            items: [item],
-            shippingAddress,
-            billingAddress,
-            paymentMethod,
-            subtotal,
-            grandTotal: subtotal
-        });
+        // Atomic stock decrement — prevents race conditions / overselling
+        const stockResult = await Product.updateOne(
+            { _id: product._id, "variants._id": variantId, "variants.stock": { $gte: finalQty } },
+            { $inc: { "variants.$.stock": -finalQty, totalStock: -finalQty } }
+        );
 
-        variant.stock -= finalQty;
-        await product.save();
+        if (stockResult.modifiedCount === 0) {
+            return res.status(400).json({ message: "Insufficient stock" });
+        }
+
+        const subtotal = totalPrice;
+        let order;
+        try {
+            order = await Order.create({
+                user: userId,
+                orderType: product.sellerMode === "wholesale" ? "B2B" : "B2C",
+                orderNumber: generateOrderNumber(),
+                items: [item],
+                shippingAddress,
+                billingAddress,
+                paymentMethod,
+                subtotal,
+                grandTotal: subtotal
+            });
+        } catch (err) {
+            // Restore stock if order creation fails
+            await Product.updateOne(
+                { _id: product._id, "variants._id": variantId },
+                { $inc: { "variants.$.stock": finalQty, totalStock: finalQty } }
+            );
+            throw err;
+        }
+
         res.status(201).json({
             message: "Order created successfully",
             order
@@ -190,14 +211,6 @@ async function getMyOrderById(req, res) {
     }
 }
 
-function deriveOrderStatus(items) {
-    const statuses = items.map(i => i.status)
-    if (statuses.every(s => s === "delivered")) return "delivered"
-    if (statuses.every(s => s === "cancelled" || s === "rejected")) return "cancelled"
-    if (statuses.some(s => s === "shipped" || s === "delivered")) return "partially_shipped"
-    return "placed"
-}
-
 async function cancelOrderItem(req, res) {
     try {
         const { orderId } = req.params
@@ -231,14 +244,10 @@ async function cancelOrderItem(req, res) {
         item.status = "cancelled"
         if (reason) item.cancellationReason = reason
 
-        const product = await Product.findById(item.product)
-        if (product) {
-            const variant = product.variants.id(item.variantId)
-            if (variant) {
-                variant.stock += item.quantity
-                await product.save()
-            }
-        }
+        await Product.updateOne(
+            { _id: item.product, "variants._id": item.variantId },
+            { $inc: { "variants.$.stock": item.quantity, totalStock: item.quantity } }
+        );
 
         order.status = deriveOrderStatus(order.items)
         await order.save()
