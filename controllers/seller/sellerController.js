@@ -232,67 +232,6 @@ async function getMySellerProfile(req, res) {
   }
 }
 
-async function listSellers(req, res) {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
-    const search = req.query.search || "";
-
-    let query = {};
-
-    if (search) {
-      query.$or = [
-        { businessName: { $regex: search, $options: "i" } },
-        { legalBusinessName: { $regex: search, $options: "i" } },
-        { contactEmail: { $regex: search, $options: "i" } },
-        { contactPhone: { $regex: search, $options: "i" } }
-      ];
-    }
-
-    const [sellers, total] = await Promise.all([
-      Seller.find(query)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      Seller.countDocuments(query)
-    ]);
-
-    return res.status(200).json({
-      page,
-      limit,
-      totalSellers: total,
-      totalPages: Math.ceil(total / limit),
-      sellers
-    });
-
-  } catch (error) {
-    return res.status(500).json({
-      message: "Unable to list sellers",
-      error: error.message
-    });
-  }
-}
-
-async function getSellerById(req, res) {
-  try {
-    const { id } = req.params;
-    const seller = await Seller.findById(id);
-
-    if (!seller) {
-      return res.status(404).json({ message: "Seller not found" });
-    }
-
-    if (!canAccessSeller(req.user, seller)) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-
-    return res.status(200).json({ seller });
-  } catch (error) {
-    return res.status(500).json({ message: "Unable to fetch seller", error: error.message });
-  }
-}
-
 async function deleteSeller(req, res) {
   try {
     const { id } = req.params;
@@ -612,9 +551,7 @@ async function getAadhaarById(req, res) {
 
 module.exports = {
   createSeller,
-  listSellers,
   getMySellerProfile,
-  getSellerById,
   updateSeller,
   deleteSeller,
   verifySellerBusinessPan,

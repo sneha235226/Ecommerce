@@ -68,7 +68,6 @@ const productSchema = new mongoose.Schema(
     ratingAverage: { type: Number, min: 0, max: 5, default: 0 },
     ratingCount: { type: Number, min: 0, default: 0 },
     reviewCount: { type: Number, min: 0, default: 0 },
-    isPublished: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     targetAudience: { type: String, enum: ["B2C", "B2B", "both"], default: "B2C" },
     sellerMode: { type: String, enum: ["retail", "wholesale", "hybrid"], default: "retail" },
@@ -87,7 +86,7 @@ const productSchema = new mongoose.Schema(
 );
 
 productSchema.index({ title: "text", description: "text", brand: "text", tags: "text", searchKeywords: "text" });
-productSchema.index({ category: 1, subcategory: 1, isPublished: 1, createdAt: -1 });
+productSchema.index({ category: 1, subcategory: 1, isActive: 1, createdAt: -1 });
 productSchema.index({ store: 1, seller: 1, createdAt: -1 });
 productSchema.index({ ratingAverage: -1, basePrice: 1 });
 

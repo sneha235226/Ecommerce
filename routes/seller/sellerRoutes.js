@@ -6,9 +6,7 @@ const orderRoutes = require("./orderRoutes");
 const contactQueryRoutes = require("./contactQueryRoutes");
 const {
   createSeller,
-  listSellers,
   getMySellerProfile,
-  getSellerById,
   updateSeller,
   verifySellerBusinessPan,
   deleteSeller,
@@ -21,15 +19,6 @@ const {
 const flagRoutes = require("./flagRoutes");
 
 const router = express.Router();
-
-function requireAdmin(req, res, next) {
-  if (req.user?.constructor?.modelName !== "Admin") {
-    return res.status(403).json({
-      message: "Admin access required"
-    });
-  }
-  next();
-}
 
 router.post("/", requireAuth, createSeller);
 
@@ -50,10 +39,5 @@ router.use("/store", requireAuth, requireSellerAuth, storeRoutes);
 router.use("/orders", requireAuth, requireSellerAuth, orderRoutes);
 router.use("/flags", requireAuth, requireSellerAuth, flagRoutes);
 router.use("/contact-queries", requireAuth, requireSellerAuth, contactQueryRoutes);
-
-// Admin
-router.get("/", requireAuth, requireAdmin, listSellers);
-router.get("/:id", requireAuth, requireAdmin, getSellerById);
-
 
 module.exports = router;

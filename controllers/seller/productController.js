@@ -218,7 +218,6 @@ async function createProduct(req, res) {
             discountPercent: Number(discountPercent) || 0,
             taxRatePercent: Number(taxRatePercent) || 0,
             returnPolicy: returnPolicy || "",
-            isPublished: false,
             isActive: true
         })
         return res.status(201).json({

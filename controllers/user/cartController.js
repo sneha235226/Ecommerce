@@ -42,7 +42,7 @@ async function addToCart(req, res) {
         }
 
         const product = await Product.findById(productId)
-        if (!product || !product.isActive || !product.isPublished) {
+        if (!product || !product.isActive) {
             return res.status(404).json({
                 message: "Product not available"
             })

@@ -3,14 +3,18 @@ const { requireAdminAuth } = require("../../middleware/auth");
 const { me } = require("../../controllers/auth/adminAuthController");
 const categoryRoutes = require("../admin/categoryRoutes");
 const subcategoryRoutes = require("../admin/subcategoryRoutes");
-const userRoutes = require("../admin/userRoutes");  
+const userRoutes = require("../admin/userRoutes");
+const dashboardRoutes = require("../admin/dashboardRoutes");
+const sellerRoutes = require("../admin/sellerRoutes");
 
 const router = express.Router();
 
 router.use(requireAdminAuth);
 router.get("/me", me);
+router.use("/dashboard", dashboardRoutes);
 router.use("/category", categoryRoutes);
 router.use("/subcategory", subcategoryRoutes);
 router.use("/users", userRoutes);
+router.use("/sellers", sellerRoutes);
 
 module.exports = router;
