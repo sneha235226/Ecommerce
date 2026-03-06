@@ -315,11 +315,11 @@ async function deleteSeller(req, res) {
     }
 
     const products = await Product.find({ seller: seller._id });
-    if (products) {
-      products.forEach(product => {
+    if (products.length > 0) {
+      await Promise.all(products.map(product => {
         product.isActive = false;
-        product.save();
-      });
+        return product.save();
+      }));
     }
 
     await seller.save();

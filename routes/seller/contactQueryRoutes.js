@@ -1,10 +1,10 @@
 const express = require("express")
-const { requireSellerAuth } = require("../../middleware/auth");
 const { getSellerQueries, updateQueryStatus } = require("../../controllers/seller/contactQuery");
 
 const router = express.Router()
 
-router.get("/", requireSellerAuth, getSellerQueries);
-router.put("/:queryId", requireSellerAuth, updateQueryStatus);
+// requireSellerAuth is already applied by the parent sellerRoutes.js router
+router.get("/", getSellerQueries);
+router.put("/:queryId", updateQueryStatus);
 
-module.exports = router
+module.exports = router;

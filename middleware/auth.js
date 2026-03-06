@@ -92,29 +92,32 @@ async function requireAdminAuth(req, res, next) {
 }
 
 async function requireSellerAuth(req, res, next) {
+  try {
+    const result = await verifyTokenAndAttachUser(req, res);
 
-  const result = await verifyTokenAndAttachUser(req, res);
+    if (result.error) {
+      return res.status(result.error.status)
+        .json({ message: result.error.message });
+    }
 
-  if (result.error) {
-    return res.status(result.error.status)
-      .json({ message: result.error.message });
-  }
-
-  const seller = await Seller.findOne({
-    user: result.user._id
-  });
-
-  if (!seller) {
-    return res.status(403).json({
-      message: "Seller account required"
+    const seller = await Seller.findOne({
+      user: result.user._id
     });
+
+    if (!seller) {
+      return res.status(403).json({
+        message: "Seller account required"
+      });
+    }
+
+    req.user = result.user;
+    req.tokenPayload = result.decoded;
+    req.seller = seller;
+
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: "Unauthorized: invalid token" });
   }
-
-  req.user = result.user;
-  req.tokenPayload = result.decoded;
-  req.seller = seller;
-
-  next();
 }
 
 module.exports = { requireAuth, requireUserAuth, requireAdminAuth, requireSellerAuth };

@@ -1,12 +1,12 @@
 const multer = require("multer");
 const multerS3 = require("multer-s3");
-const s3 = require("../config/s3");
+const { s3Client } = require("../config/s3");
 
 function uploadToS3(folder) {
 
     return multer({
         storage: multerS3({
-            s3,
+            s3: s3Client,
             bucket: process.env.AWS_BUCKET_NAME,
             contentType: multerS3.AUTO_CONTENT_TYPE,
             key: function (req, file, cb) {

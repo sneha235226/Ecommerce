@@ -1,36 +1,23 @@
 const Order = require("../../models/Order");
-const Seller = require("../../models/Seller");
 const Product = require("../../models/Product");
 
 async function getSellerOrders(req, res) {
     try {
-        const seller = await Seller.findOne({
-            user: req.user._id
-        });
-
-        if (!seller) {
-            return res.status(404).json({
-                message: "Seller not found"
-            });
-        }
-
-        const sellerId = seller._id;
+        const sellerId = req.seller._id;
         const page = Number(req.query.page) || 1;
         const limit = Number(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
         const status = req.query.status;
-        let query = {
-            "items.seller": sellerId
-        };
-
+        let query;
         if (status) {
-            query.items = {
-                $elemMatch: {
-                    seller: sellerId,
-                    status: status
+            query = {
+                items: {
+                    $elemMatch: { seller: sellerId, status }
                 }
             };
+        } else {
+            query = { "items.seller": sellerId };
         }
 
         const orders = await Order.find(query)
@@ -113,10 +100,7 @@ async function updateOrderItemStatus(req, res) {
             })
         }
 
-        const seller = await Seller.findOne({ user: req.user._id })
-        if (!seller) {
-            return res.status(404).json({ message: "Seller not found" })
-        }
+        const seller = req.seller;
 
         const order = await Order.findOne({
             _id: orderId,
@@ -134,7 +118,6 @@ async function updateOrderItemStatus(req, res) {
         const prevStatus = item.status
         item.status = status
 
-        // Restore stock on rejection
         if (status === "rejected" && prevStatus !== "rejected") {
             const product = await Product.findById(item.product)
             if (product) {

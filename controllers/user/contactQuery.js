@@ -63,4 +63,4 @@ async function getMyQueries(req, res) {
 module.exports = {
     createQuery,
     getMyQueries
-}
+};

@@ -1,6 +1,6 @@
 const express = require("express");
 const uploadToS3 = require("../../middleware/multer");
-const { getStore, createStore, deleteStore , updateStore} = require("../../controllers/seller/storeController");
+const { getStore, createStore, updateStore } = require("../../controllers/seller/storeController");
 
 const router = express.Router();
 const upload = uploadToS3("stores");

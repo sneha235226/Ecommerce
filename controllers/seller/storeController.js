@@ -1,15 +1,13 @@
-const Seller = require("../../models/Seller");
 const Store = require("../../models/Store");
-const s3 = require("../../config/s3");
+const { s3Client } = require("../../config/s3");
 const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
-
 
 async function deleteUploadedFiles(filesObj) {
     if (!filesObj) return;
     const files = Object.values(filesObj).flat();
     for (const file of files) {
         if (!file.key) continue;
-        await s3.send(
+        await s3Client.send(
             new DeleteObjectCommand({
                 Bucket: process.env.AWS_BUCKET_NAME,
                 Key: file.key
@@ -22,7 +20,7 @@ async function deleteFileByUrl(url) {
     if (!url) return;
     const key = url.split(".amazonaws.com/")[1];
     if (!key) return;
-    await s3.send(
+    await s3Client.send(
         new DeleteObjectCommand({
             Bucket: process.env.AWS_BUCKET_NAME,
             Key: key
@@ -49,15 +47,15 @@ async function createStore(req, res) {
             seller: seller._id,
             description: description || "",
             logoUrl:
-            req.files?.logo?.[0]?.location || "",
+                req.files?.logo?.[0]?.location || "",
             bannerUrl:
-            req.files?.banner?.[0]?.location || "",
+                req.files?.banner?.[0]?.location || "",
             serviceablePostalCodes:
-            serviceablePostalCodes
-            ? JSON.parse(serviceablePostalCodes)
-            : [],
+                serviceablePostalCodes
+                    ? JSON.parse(serviceablePostalCodes)
+                    : [],
             returnPolicy:
-            returnPolicy || "",
+                returnPolicy || "",
             isActive: true
         });
 
@@ -77,14 +75,7 @@ async function createStore(req, res) {
 
 async function getStore(req, res) {
     try {
-        const seller = await Seller.findOne({ user: req.user._id });
-        if (!seller) {
-            return res.status(404).json({
-                message: "Seller not found"
-            });
-        }
-
-        const store = await Store.findOne({ seller: seller._id });
+        const store = await Store.findOne({ seller: req.seller._id });
         if (!store) {
             return res.status(404).json({
                 message: "Store not found"
@@ -106,15 +97,7 @@ async function getStore(req, res) {
 
 async function updateStore(req, res) {
     try {
-        const seller = await Seller.findOne({ user: req.user._id });
-        if (!seller) {
-            await deleteUploadedFiles(req.files);
-            return res.status(404).json({
-                message: "Seller not found"
-            });
-        }
-
-        const store = await Store.findOne({ seller: seller._id });
+        const store = await Store.findOne({ seller: req.seller._id });
         if (!store) {
             await deleteUploadedFiles(req.files);
             return res.status(404).json({

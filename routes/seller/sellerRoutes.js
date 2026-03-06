@@ -49,7 +49,7 @@ router.use("/products", requireAuth, requireSellerAuth, productRoutes);
 router.use("/store", requireAuth, requireSellerAuth, storeRoutes);
 router.use("/orders", requireAuth, requireSellerAuth, orderRoutes);
 router.use("/flags", requireAuth, requireSellerAuth, flagRoutes);
-router.use("/contact", requireAuth, requireSellerAuth, contactQueryRoutes);
+router.use("/contact-queries", requireAuth, requireSellerAuth, contactQueryRoutes);
 
 // Admin
 router.get("/", requireAuth, requireAdmin, listSellers);

@@ -87,7 +87,13 @@ async function addToCart(req, res) {
             )
 
         if (existingItem) {
-            existingItem.quantity += finalQty
+            const newQty = existingItem.quantity + finalQty;
+            if (newQty > variant.stock) {
+                return res.status(400).json({
+                    message: `Only ${variant.stock} units available (already have ${existingItem.quantity} in cart)`
+                });
+            }
+            existingItem.quantity = newQty;
         } else {
 
             cart.items.push({
@@ -296,29 +302,38 @@ async function checkoutCart(req, res) {
         if (!cart || cart.items.length === 0) {
             return res.status(400).json({
                 message: "Cart empty"
-            })
+            });
+        }
 
+        const resolvedItems = [];
+        for (const item of cart.items) {
+            const product = await Product.findById(item.product);
+            if (!product || !product.isActive) {
+                return res.status(400).json({
+                    message: `Product "${item.titleSnapshot}" is no longer available. Please remove it from your cart.`
+                });
+            }
+
+            const variant = product.variants.id(item.variantId);
+            if (!variant) {
+                return res.status(400).json({
+                    message: `Variant for "${item.titleSnapshot}" is no longer available.`
+                });
+            }
+
+            if (item.quantity > variant.stock) {
+                return res.status(400).json({
+                    message: `Insufficient stock for "${item.titleSnapshot}". Only ${variant.stock} left.`
+                });
+            }
+
+            resolvedItems.push({ item, product, variant });
         }
 
         let orderItems = [];
         let subtotal = 0;
 
-        for (const item of cart.items) {
-            const product = await Product.findById(item.product);
-            const variant = product.variants.id(item.variantId);
-
-            if (!variant) {
-                return res.status(400).json({
-                    message: "Variant missing"
-                })
-            }
-
-            if (item.quantity > variant.stock) {
-                return res.status(400).json({
-                    message: "Stock insufficient"
-                })
-            }
-
+        for (const { item, product, variant } of resolvedItems) {
             const totalPrice = item.unitPrice * item.quantity;
 
             orderItems.push({
@@ -352,22 +367,21 @@ async function checkoutCart(req, res) {
             grandTotal: subtotal
         });
 
-
         cart.items = [];
         cart.subtotal = 0;
         cart.grandTotal = 0;
-
         await cart.save();
+
         res.json({
             message: "Order placed successfully",
             order
-        })
+        });
     }
     catch (error) {
         res.status(500).json({
             message: "Checkout failed",
             error: error.message
-        })
+        });
     }
 }
 

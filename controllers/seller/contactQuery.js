@@ -1,17 +1,14 @@
 const ContactQuery = require("../../models/ContactQuery")
-const Seller = require("../../models/Seller")
 
 async function getSellerQueries(req, res) {
     try {
-        const seller = await Seller.findOne({
-            user: req.user._id
-        })
+        const sellerId = req.seller._id;
 
         const page = parseInt(req.query.page) || 1
         const limit = parseInt(req.query.limit) || 10
         const skip = (page - 1) * limit
 
-        const query = { seller: seller._id }
+        const query = { seller: sellerId }
 
         const queries = await ContactQuery.find(query)
             .populate("product", "title images")
