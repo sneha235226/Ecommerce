@@ -129,8 +129,15 @@ async function updateSeller(req, res) {
       });
     }
 
+    const prevMode = seller.mode;
     applySellerUpdate(seller, req.body || {});
     await seller.save();
+
+    // Keep Store.sellerMode in sync so geo queries respect the toggle
+    if (req.body.mode && req.body.mode !== prevMode) {
+        await Store.updateMany({ seller: seller._id }, { sellerMode: seller.mode });
+    }
+
     return res.status(200).json({
       message: "Seller updated successfully",
       seller

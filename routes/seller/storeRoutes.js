@@ -1,6 +1,6 @@
 const express = require("express");
 const uploadToS3 = require("../../middleware/multer");
-const { getStore, createStore, updateStore } = require("../../controllers/seller/storeController");
+const { getStore, createStore, updateStore, updateStoreLocation } = require("../../controllers/seller/storeController");
 
 const router = express.Router();
 const upload = uploadToS3("stores");
@@ -24,5 +24,8 @@ router.put(
   ]),
   updateStore
 );
+
+// PATCH /store/location — update store GPS coordinates only
+router.patch("/location", updateStoreLocation);
 
 module.exports = router;
