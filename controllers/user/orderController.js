@@ -1,28 +1,21 @@
 const Order = require("../../models/Order");
 const Product = require("../../models/Product");
-const { generateOrderNumber, deriveOrderStatus } = require("../../utils/orderUtils");
+const Seller = require("../../models/Seller");
+const { getBulkPrice, generateOrderNumber, deriveOrderStatus } = require("../../utils/orderUtils");
 
-function getBulkPrice(product, quantity, variantPrice) {
-    let appliedTier = null;
-    let price = variantPrice;
+function resolvePricingMode(sellerMode, appliedTier) {
+    if (sellerMode === "hybrid") return appliedTier ? "wholesale" : "retail";
+    return sellerMode;
+}
 
-    if (product.bulkPricingEnabled && product.bulkPricing.length) {
-        for (const tier of product.bulkPricing) {
-            if (
-                quantity >= tier.minQty &&
-                (!tier.maxQty || quantity <= tier.maxQty)
-            ) {
-                price = tier.pricePerUnit;
-                appliedTier = {
-                    minQty: tier.minQty,
-                    maxQty: tier.maxQty,
-                    unitPrice: tier.pricePerUnit
-                };
-                break;
-            }
+function validateAddress(addr, label) {
+    const required = ["fullName", "phone", "line1", "city", "postalCode", "country"];
+    for (const field of required) {
+        if (!addr?.[field]?.toString().trim()) {
+            return `${label}.${field} is required`;
         }
     }
-    return { price, appliedTier };
+    return null;
 }
 
 async function buyNow(req, res) {
@@ -37,55 +30,55 @@ async function buyNow(req, res) {
             paymentMethod
         } = req.body;
 
+        // Validate addresses early
+        const addrError =
+            validateAddress(shippingAddress, "shippingAddress") ||
+            validateAddress(billingAddress, "billingAddress");
+        if (addrError) {
+            return res.status(400).json({ message: addrError });
+        }
+
+        if (!paymentMethod) {
+            return res.status(400).json({ message: "paymentMethod is required" });
+        }
 
         const product = await Product.findById(productId);
-        if (!product || !product.isActive)
-            return res.status(404).json({
-                message: "Product not found"
-            });
-
-        // B2B-only products cannot be purchased via the regular user flow
-        if (product.targetAudience === "B2B") {
-            return res.status(403).json({
-                message: "This product is only available for B2B orders"
-            });
+        if (!product || !product.isActive) {
+            return res.status(404).json({ message: "Product not found" });
         }
 
         const variant = product.variants.id(variantId);
-
-        if (!variant || !variant.isActive)
-            return res.status(404).json({
-                message: "Variant not found"
-            });
-
+        if (!variant || !variant.isActive) {
+            return res.status(404).json({ message: "Variant not found" });
+        }
 
         let finalQty = quantity || 1;
-        if (
-            product.sellerMode === "wholesale" &&
-            finalQty < product.moq
-        ) {
-            return res.status(400).json({
-                message:
-                    `Minimum order quantity is ${product.moq}`
-            });
-        }
 
+        if (product.sellerMode === "wholesale" && finalQty < product.moq) {
+            return res.status(400).json({ message: `Minimum order quantity is ${product.moq}` });
+        }
 
         if (finalQty > variant.stock) {
-            return res.status(400).json({
-                message: "Insufficient stock"
-            });
+            return res.status(400).json({ message: "Insufficient stock" });
         }
 
-        const pricing = getBulkPrice(
-            product,
-            finalQty,
-            variant.price
-        );
-
-
+        const pricing = getBulkPrice(product, finalQty, variant.price);
+        const pricingMode = resolvePricingMode(product.sellerMode, pricing.appliedTier);
         const unitPrice = pricing.price;
-        const totalPrice = unitPrice * finalQty;
+        const totalPrice = parseFloat((unitPrice * finalQty).toFixed(2));
+
+        // Commission & payout
+        const sellerDoc = product.seller
+            ? await Seller.findById(product.seller).select("commissionPercent")
+            : null;
+        const commissionPercent = sellerDoc?.commissionPercent ?? 10;
+        const commissionAmount = parseFloat((totalPrice * commissionPercent / 100).toFixed(2));
+        const sellerPayoutAmount = parseFloat((totalPrice - commissionAmount).toFixed(2));
+
+        // Tax
+        const taxRatePercent = product.taxRatePercent || 0;
+        const taxAmount = parseFloat((totalPrice * taxRatePercent / 100).toFixed(2));
+        const grandTotal = parseFloat((totalPrice + taxAmount).toFixed(2));
 
         const item = {
             product: product._id,
@@ -95,16 +88,14 @@ async function buyNow(req, res) {
             quantity: finalQty,
             unitPrice,
             totalPrice,
-            pricingMode: product.sellerMode,
+            pricingMode,
             appliedTier: pricing.appliedTier,
+            commissionPercent,
+            commissionAmount,
+            sellerPayoutAmount,
             titleSnapshot: product.title,
             skuSnapshot: variant.sku,
-            imageSnapshot:
-                variant.images?.[0]
-                ||
-                product.images?.[0]
-                ||
-                ""
+            imageSnapshot: variant.images?.[0] || product.images?.[0] || ""
         };
 
         // Atomic stock decrement — prevents race conditions / overselling
@@ -117,19 +108,19 @@ async function buyNow(req, res) {
             return res.status(400).json({ message: "Insufficient stock" });
         }
 
-        const subtotal = totalPrice;
         let order;
         try {
             order = await Order.create({
                 user: userId,
-                orderType: product.sellerMode === "wholesale" ? "B2B" : "B2C",
+                orderType: pricingMode === "wholesale" ? "B2B" : "B2C",
                 orderNumber: generateOrderNumber(),
                 items: [item],
                 shippingAddress,
                 billingAddress,
                 paymentMethod,
-                subtotal,
-                grandTotal: subtotal
+                subtotal: totalPrice,
+                taxAmount,
+                grandTotal
             });
         } catch (err) {
             // Restore stock if order creation fails
@@ -140,16 +131,9 @@ async function buyNow(req, res) {
             throw err;
         }
 
-        res.status(201).json({
-            message: "Order created successfully",
-            order
-        });
-    }
-    catch (error) {
-        res.status(500).json({
-            message: "Order creation failed",
-            error: error.message
-        })
+        res.status(201).json({ message: "Order created successfully", order });
+    } catch (error) {
+        res.status(500).json({ message: "Order creation failed", error: error.message });
     }
 }
 
@@ -159,17 +143,13 @@ async function getMyOrders(req, res) {
         const limit = Number(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
-        const orders = await Order.find({
-            user: req.user._id
-        })
+        const orders = await Order.find({ user: req.user._id })
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
             .populate("items.product", "title images");
 
-        const total = await Order.countDocuments({
-            user: req.user._id
-        });
+        const total = await Order.countDocuments({ user: req.user._id });
 
         res.status(200).json({
             page,
@@ -179,10 +159,7 @@ async function getMyOrders(req, res) {
             orders
         });
     } catch (error) {
-        res.status(500).json({
-            message: "Fetch failed",
-            error: error.message
-        });
+        res.status(500).json({ message: "Fetch failed", error: error.message });
     }
 }
 
@@ -194,73 +171,59 @@ async function getMyOrderById(req, res) {
         }).populate("items.product", "title images");
 
         if (!order) {
-            return res.status(404).json({
-                message: "Order not found"
-            });
+            return res.status(404).json({ message: "Order not found" });
         }
 
-        res.status(200).json({
-            message: "Order fetched successfully",
-            order
-        });
+        res.status(200).json({ message: "Order fetched successfully", order });
     } catch (error) {
-        res.status(500).json({
-            message: "Fetch failed",
-            error: error.message
-        });
+        res.status(500).json({ message: "Fetch failed", error: error.message });
     }
 }
 
 async function cancelOrderItem(req, res) {
     try {
-        const { orderId } = req.params
-        const { itemId, reason } = req.body
+        const { orderId } = req.params;
+        const { itemId, reason } = req.body;
 
         if (!itemId) {
-            return res.status(400).json({ message: "itemId required" })
+            return res.status(400).json({ message: "itemId required" });
         }
 
-        const order = await Order.findOne({
-            _id: orderId,
-            user: req.user._id
-        })
-
+        const order = await Order.findOne({ _id: orderId, user: req.user._id });
         if (!order) {
-            return res.status(404).json({ message: "Order not found" })
+            return res.status(404).json({ message: "Order not found" });
         }
 
-        const item = order.items.id(itemId)
+        const item = order.items.id(itemId);
         if (!item) {
-            return res.status(404).json({ message: "Item not found in order" })
+            return res.status(404).json({ message: "Item not found in order" });
         }
 
-        const cancellableStatuses = ["placed", "accepted"]
+        const cancellableStatuses = ["placed", "accepted"];
         if (!cancellableStatuses.includes(item.status)) {
             return res.status(400).json({
                 message: `Cannot cancel item with status "${item.status}". Only placed or accepted items can be cancelled.`
-            })
+            });
         }
 
-        item.status = "cancelled"
-        if (reason) item.cancellationReason = reason
+        item.status = "cancelled";
+        if (reason) item.cancellationReason = reason;
 
         await Product.updateOne(
             { _id: item.product, "variants._id": item.variantId },
             { $inc: { "variants.$.stock": item.quantity, totalStock: item.quantity } }
         );
 
-        order.status = deriveOrderStatus(order.items)
-        await order.save()
+        order.status = deriveOrderStatus(order.items);
+        await order.save();
+
         res.status(200).json({
             message: "Item cancelled successfully",
             itemId,
             orderStatus: order.status
-        })
+        });
     } catch (error) {
-        res.status(500).json({
-            message: "Cancellation failed",
-            error: error.message
-        })
+        res.status(500).json({ message: "Cancellation failed", error: error.message });
     }
 }
 

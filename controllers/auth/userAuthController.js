@@ -22,6 +22,8 @@ function buildUserResponse(user) {
     gender: user.gender,
     email: user.email,
     phone: user.phone,
+    phoneVerified: user.isPhoneVerified,
+    emailVerified: user.isEmailVerified,
     role
   };
   if (user.firstName !== undefined) response.firstName = user.firstName;

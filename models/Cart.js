@@ -63,6 +63,12 @@ const cartItemSchema = new mongoose.Schema({
   imageSnapshot: {
     type: String,
     default: ""
+  },
+  taxRatePercent: {
+    type: Number,
+    min: 0,
+    max: 100,
+    default: 0
   }
 });
 

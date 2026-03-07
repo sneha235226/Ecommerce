@@ -66,6 +66,7 @@ const sellerSchema = new mongoose.Schema(
     },
     ratingAverage: { type: Number, min: 0, max: 5, default: 0 },
     ratingCount: { type: Number, min: 0, default: 0 },
+    commissionPercent: { type: Number, min: 0, max: 100, default: 10 },
     escrowBalance: { type: Number, min: 0, default: 0 },
     lastSettlementAt: { type: Date, default: null },
   },

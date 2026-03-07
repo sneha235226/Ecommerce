@@ -1,5 +1,19 @@
 const crypto = require("crypto");
 
+function getBulkPrice(product, quantity, variantPrice) {
+    if (product.bulkPricingEnabled && product.bulkPricing.length) {
+        for (const tier of product.bulkPricing) {
+            if (quantity >= tier.minQty && (!tier.maxQty || quantity <= tier.maxQty)) {
+                return {
+                    price: tier.pricePerUnit,
+                    appliedTier: { minQty: tier.minQty, maxQty: tier.maxQty, unitPrice: tier.pricePerUnit }
+                };
+            }
+        }
+    }
+    return { price: variantPrice, appliedTier: null };
+}
+
 function generateOrderNumber() {
     const ts = Date.now().toString(36).toUpperCase();
     const rand = crypto.randomBytes(3).toString("hex").toUpperCase();
@@ -14,4 +28,4 @@ function deriveOrderStatus(items) {
     return "placed";
 }
 
-module.exports = { generateOrderNumber, deriveOrderStatus };
+module.exports = { getBulkPrice, generateOrderNumber, deriveOrderStatus };

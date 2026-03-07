@@ -1,104 +1,86 @@
 const Cart = require("../../models/Cart");
 const Order = require("../../models/Order");
 const Product = require("../../models/Product");
-const { generateOrderNumber } = require("../../utils/orderUtils");
+const Seller = require("../../models/Seller");
+const { getBulkPrice, generateOrderNumber } = require("../../utils/orderUtils");
 
-function getBulkPrice(product, quantity, variantPrice) {
-    if (product.bulkPricingEnabled && product.bulkPricing.length) {
-        for (const tier of product.bulkPricing) {
-            if (quantity >= tier.minQty && (!tier.maxQty || quantity <= tier.maxQty)) {
-                return { price: tier.pricePerUnit, appliedTier: { minQty: tier.minQty, maxQty: tier.maxQty, unitPrice: tier.pricePerUnit } };
-            }
+// Derives the effective pricing mode for a single purchase
+function resolvePricingMode(sellerMode, appliedTier) {
+    if (sellerMode === "hybrid") return appliedTier ? "wholesale" : "retail";
+    return sellerMode; // "retail" or "wholesale"
+}
+
+function validateAddress(addr, label) {
+    const required = ["fullName", "phone", "line1", "city", "postalCode", "country"];
+    for (const field of required) {
+        if (!addr?.[field]?.toString().trim()) {
+            return `${label}.${field} is required`;
         }
     }
-    return { price: variantPrice, appliedTier: null };
+    return null;
 }
 
 function calculateTotals(cart) {
-    let subtotal = 0
+    let subtotal = 0;
+    let taxAmount = 0;
+
     cart.items.forEach(item => {
-        item.lineTotal = item.unitPrice * item.quantity
-        subtotal += item.lineTotal
-    })
-    cart.subtotal = subtotal
-    cart.shippingAmount = 0
-    cart.taxAmount = 0
-    cart.discountAmount = 0
-    cart.grandTotal =
-        subtotal +
-        cart.shippingAmount +
-        cart.taxAmount -
-        cart.discountAmount
+        item.lineTotal = parseFloat((item.unitPrice * item.quantity).toFixed(2));
+        subtotal += item.lineTotal;
+        taxAmount += parseFloat((item.lineTotal * (item.taxRatePercent || 0) / 100).toFixed(2));
+    });
+
+    cart.subtotal = parseFloat(subtotal.toFixed(2));
+    cart.taxAmount = parseFloat(taxAmount.toFixed(2));
+    cart.shippingAmount = cart.shippingAmount || 0;
+    cart.discountAmount = cart.discountAmount || 0;
+    cart.grandTotal = parseFloat(
+        (cart.subtotal + cart.shippingAmount + cart.taxAmount - cart.discountAmount).toFixed(2)
+    );
 }
 
 async function addToCart(req, res) {
     try {
-        const userId = req.user._id
-
-        const {
-            productId,
-            variantId,
-            quantity
-        } = req.body
-
+        const userId = req.user._id;
+        const { productId, variantId, quantity } = req.body;
 
         if (!productId || !variantId) {
-            return res.status(400).json({
-                message: "productId & variantId required"
-            })
+            return res.status(400).json({ message: "productId & variantId required" });
         }
 
-        const product = await Product.findById(productId)
+        const product = await Product.findById(productId);
         if (!product || !product.isActive) {
-            return res.status(404).json({
-                message: "Product not available"
-            })
+            return res.status(404).json({ message: "Product not available" });
         }
 
-
-        const variant = product.variants.id(variantId)
+        const variant = product.variants.id(variantId);
         if (!variant || !variant.isActive) {
-            return res.status(404).json({
-                message: "Variant not available"
-            })
+            return res.status(404).json({ message: "Variant not available" });
         }
 
-        // B2B-only products cannot be added to a regular user cart
-        if (product.targetAudience === "B2B") {
-            return res.status(403).json({
-                message: "This product is only available for B2B orders"
-            })
-        }
-
-        let finalQty = quantity || 1
+        let finalQty = quantity || 1;
 
         // Enforce MOQ for wholesale-only products (hybrid allows retail quantities)
         if (product.sellerMode === "wholesale" && finalQty < product.moq) {
-            return res.status(400).json({
-                message: `Minimum order quantity is ${product.moq}`
-            })
+            return res.status(400).json({ message: `Minimum order quantity is ${product.moq}` });
         }
 
         if (finalQty > variant.stock) {
-            return res.status(400).json({
-                message: "Insufficient stock"
-            })
+            return res.status(400).json({ message: "Insufficient stock" });
         }
 
         const pricing = getBulkPrice(product, finalQty, variant.price);
+        const pricingMode = resolvePricingMode(product.sellerMode, pricing.appliedTier);
 
-        let cart = await Cart.findOne({ user: userId })
+        let cart = await Cart.findOne({ user: userId });
         if (!cart) {
-            cart = await Cart.create({
-                user: userId,
-                items: []
-            })
+            cart = await Cart.create({ user: userId, items: [] });
         }
 
-        const existingItem =
-            cart.items.find(i =>
-                String(i.variantId) === String(variantId)
-            )
+        // Match by both productId AND variantId for correctness
+        const existingItem = cart.items.find(
+            i => String(i.product) === String(productId) && String(i.variantId) === String(variantId)
+        );
 
         if (existingItem) {
             const newQty = existingItem.quantity + finalQty;
@@ -111,6 +93,7 @@ async function addToCart(req, res) {
             existingItem.quantity = newQty;
             existingItem.unitPrice = newPricing.price;
             existingItem.appliedTier = newPricing.appliedTier;
+            existingItem.pricingMode = resolvePricingMode(product.sellerMode, newPricing.appliedTier);
         } else {
             cart.items.push({
                 product: product._id,
@@ -120,190 +103,135 @@ async function addToCart(req, res) {
                 quantity: finalQty,
                 unitPrice: pricing.price,
                 appliedTier: pricing.appliedTier,
-                pricingMode: product.sellerMode,
+                pricingMode,
+                taxRatePercent: product.taxRatePercent || 0,
                 titleSnapshot: product.title,
                 skuSnapshot: variant.sku,
-                imageSnapshot:
-                    variant.images?.[0] ||
-                    product.images?.[0] ||
-                    ""
-            })
+                imageSnapshot: variant.images?.[0] || product.images?.[0] || ""
+            });
         }
 
-        calculateTotals(cart)
-        await cart.save()
-        res.json({
-            message: "Added to cart successfully",
-            cart
-        })
+        calculateTotals(cart);
+        await cart.save();
+        res.json({ message: "Added to cart successfully", cart });
     } catch (error) {
-        res.status(500).json({
-            message: "Add failed",
-            error: error.message
-        })
+        res.status(500).json({ message: "Add failed", error: error.message });
     }
 }
 
 async function getCart(req, res) {
     try {
-        const cart = await Cart.findOne({ user: req.user._id }).populate("items.product", "title images")
+        const cart = await Cart.findOne({ user: req.user._id }).populate("items.product", "title images");
         if (!cart) {
-            return res.json({
-                items: []
-            })
-
+            return res.json({ message: "Cart is empty", cart: { items: [], subtotal: 0, taxAmount: 0, shippingAmount: 0, discountAmount: 0, grandTotal: 0 } });
         }
-        res.status(200).json({
-            message: "Cart fetched successfully",
-            cart
-        })
-    }
-    catch (error) {
-        res.status(500).json({
-            message: "Fetch failed",
-            error: error.message
-        })
+        res.status(200).json({ message: "Cart fetched successfully", cart });
+    } catch (error) {
+        res.status(500).json({ message: "Fetch failed", error: error.message });
     }
 }
 
 async function updateQuantity(req, res) {
     try {
-        const { variantId, quantity } = req.body
+        const { productId, variantId, quantity } = req.body;
+
+        if (!variantId) {
+            return res.status(400).json({ message: "variantId required" });
+        }
         if (quantity < 1) {
-            return res.status(400).json({
-                message: "Invalid quantity"
-            })
+            return res.status(400).json({ message: "Invalid quantity" });
         }
-        const cart = await Cart.findOne({
-            user: req.user._id
-        })
+
+        const cart = await Cart.findOne({ user: req.user._id });
         if (!cart) {
-            return res.status(404).json({
-                message: "Cart not found"
-            })
+            return res.status(404).json({ message: "Cart not found" });
         }
 
-        const item = cart.items.find(i => String(i.variantId) === variantId)
-
+        const item = cart.items.find(
+            i => String(i.variantId) === String(variantId) &&
+                (!productId || String(i.product) === String(productId))
+        );
         if (!item) {
-            return res.status(404).json({
-                message: "Item not found"
-            })
+            return res.status(404).json({ message: "Item not found" });
         }
 
-        const product = await Product.findById(item.product)
-        if (!product) {
-            return res.status(404).json({
-                message: "Product not found"
-            })
+        const product = await Product.findById(item.product);
+        if (!product || !product.isActive) {
+            return res.status(404).json({ message: "Product not found or unavailable" });
         }
 
-        const variant = product.variants.id(item.variantId)
-        if (!variant) {
-            return res.status(404).json({
-                message: "Variant not found"
-            })
+        const variant = product.variants.id(item.variantId);
+        if (!variant || !variant.isActive) {
+            return res.status(404).json({ message: "Variant not found or unavailable" });
         }
 
         if (quantity > variant.stock) {
-            return res.status(400).json({
-                message: `Only ${variant.stock} units available`
-            })
+            return res.status(400).json({ message: `Only ${variant.stock} units available` });
         }
 
         if (product.sellerMode === "wholesale" && quantity < product.moq) {
-            return res.status(400).json({
-                message: `Minimum quantity is ${product.moq}`
-            })
+            return res.status(400).json({ message: `Minimum quantity is ${product.moq}` });
         }
 
         const pricing = getBulkPrice(product, quantity, variant.price);
         item.quantity = quantity;
         item.unitPrice = pricing.price;
         item.appliedTier = pricing.appliedTier;
-        calculateTotals(cart)
-        await cart.save()
-        res.json({
-            message: "Quantity updated successfully",
-            cart
-        })
-    }
-    catch (error) {
-        res.status(500).json({
-            message: "Update failed",
-            error: error.message
-        })
+        item.pricingMode = resolvePricingMode(product.sellerMode, pricing.appliedTier);
+        item.taxRatePercent = product.taxRatePercent || 0;
+
+        calculateTotals(cart);
+        await cart.save();
+        res.json({ message: "Quantity updated successfully", cart });
+    } catch (error) {
+        res.status(500).json({ message: "Update failed", error: error.message });
     }
 }
 
 async function removeItem(req, res) {
     try {
-        const { variantId } = req.body;
+        const { productId, variantId } = req.body;
 
         if (!variantId) {
-            return res.status(400).json({
-                message: "variantId required"
-            });
+            return res.status(400).json({ message: "variantId required" });
         }
 
-        const cart = await Cart.findOne({
-            user: req.user._id
-        });
-
+        const cart = await Cart.findOne({ user: req.user._id });
         if (!cart) {
-            return res.status(404).json({
-                message: "Cart not found"
-            });
+            return res.status(404).json({ message: "Cart not found" });
         }
 
         const beforeCount = cart.items.length;
-
-        cart.items = cart.items.filter(
-            i => String(i.variantId) !== String(variantId)
-        );
+        cart.items = cart.items.filter(i => {
+            const variantMatch = String(i.variantId) !== String(variantId);
+            const productMatch = productId ? String(i.product) !== String(productId) : false;
+            return variantMatch || productMatch;
+        });
 
         if (beforeCount === cart.items.length) {
-            return res.status(404).json({
-                message: "Item not found in cart"
-            });
+            return res.status(404).json({ message: "Item not found in cart" });
         }
 
         calculateTotals(cart);
         await cart.save();
-        res.json({
-            message: "Item removed successfully",
-            cart
-        });
-
+        res.json({ message: "Item removed successfully", cart });
     } catch (error) {
-        res.status(500).json({
-            message: "Remove failed",
-            error: error.message
-        });
+        res.status(500).json({ message: "Remove failed", error: error.message });
     }
 }
 
 async function clearCart(req, res) {
     try {
-        const cart = await Cart.findOne({ user: req.user._id })
+        const cart = await Cart.findOne({ user: req.user._id });
         if (!cart) {
-            return res.json({
-                message: "Cart empty"
-            })
+            return res.json({ message: "Cart empty" });
         }
-        cart.items = []
-        calculateTotals(cart)
-        await cart.save()
-        res.json({
-            message: "Cart cleared successfully",
-            cart
-        })
-    }
-    catch (error) {
-        res.status(500).json({
-            message: "Clear failed",
-            error: error.message
-        })
+        cart.items = [];
+        calculateTotals(cart);
+        await cart.save();
+        res.json({ message: "Cart cleared successfully", cart });
+    } catch (error) {
+        res.status(500).json({ message: "Clear failed", error: error.message });
     }
 }
 
@@ -313,16 +241,28 @@ async function checkoutCart(req, res) {
         const {
             shippingAddress,
             billingAddress,
-            paymentMethod
+            paymentMethod,
+            shippingAmount: reqShipping
         } = req.body;
+
+        // ── Validate addresses up-front ────────────────────────────────────
+        const addrError =
+            validateAddress(shippingAddress, "shippingAddress") ||
+            validateAddress(billingAddress, "billingAddress");
+        if (addrError) {
+            return res.status(400).json({ message: addrError });
+        }
+
+        if (!paymentMethod) {
+            return res.status(400).json({ message: "paymentMethod is required" });
+        }
 
         const cart = await Cart.findOne({ user: userId });
         if (!cart || cart.items.length === 0) {
-            return res.status(400).json({
-                message: "Cart empty"
-            });
+            return res.status(400).json({ message: "Cart empty" });
         }
 
+        // ── Step 1: Validate all items ─────────────────────────────────────
         const resolvedItems = [];
         for (const item of cart.items) {
             const product = await Product.findById(item.product);
@@ -333,7 +273,7 @@ async function checkoutCart(req, res) {
             }
 
             const variant = product.variants.id(item.variantId);
-            if (!variant) {
+            if (!variant || !variant.isActive) {
                 return res.status(400).json({
                     message: `Variant for "${item.titleSnapshot}" is no longer available.`
                 });
@@ -345,7 +285,6 @@ async function checkoutCart(req, res) {
                 });
             }
 
-            // Re-validate MOQ at checkout time (wholesale only)
             if (product.sellerMode === "wholesale" && item.quantity < product.moq) {
                 return res.status(400).json({
                     message: `"${item.titleSnapshot}" requires a minimum quantity of ${product.moq}.`
@@ -355,21 +294,48 @@ async function checkoutCart(req, res) {
             resolvedItems.push({ item, product, variant });
         }
 
+        // ── Step 2: Fetch seller commissions (one DB call for all sellers) ─
+        const uniqueSellerIds = [
+            ...new Set(
+                resolvedItems
+                    .map(r => r.item.seller)
+                    .filter(Boolean)
+                    .map(String)
+            )
+        ];
+
+        const sellerDocs = await Seller.find(
+            { _id: { $in: uniqueSellerIds } },
+            { commissionPercent: 1 }
+        );
+
+        const sellerCommissionMap = {};
+        for (const s of sellerDocs) {
+            sellerCommissionMap[String(s._id)] = s.commissionPercent ?? 10;
+        }
+
+        // ── Step 3: Atomic stock decrements + build order items ───────────
         let orderItems = [];
         let subtotal = 0;
+        let taxAmount = 0;
         let hasWholesaleItem = false;
         const stockDecrements = [];
 
         for (const { item, product, variant } of resolvedItems) {
             const pricing = getBulkPrice(product, item.quantity, variant.price);
+            const pricingMode = resolvePricingMode(product.sellerMode, pricing.appliedTier);
             const unitPrice = pricing.price;
-            const totalPrice = unitPrice * item.quantity;
+            const totalPrice = parseFloat((unitPrice * item.quantity).toFixed(2));
 
-            if (product.sellerMode !== "retail") hasWholesaleItem = true;
+            // B2B only when wholesale pricing actually applied
+            if (pricingMode === "wholesale") hasWholesaleItem = true;
 
-            // Atomic decrement — prevents race conditions / overselling
             const stockResult = await Product.updateOne(
-                { _id: item.product, "variants._id": item.variantId, "variants.stock": { $gte: item.quantity } },
+                {
+                    _id: item.product,
+                    "variants._id": item.variantId,
+                    "variants.stock": { $gte: item.quantity }
+                },
                 { $inc: { "variants.$.stock": -item.quantity, totalStock: -item.quantity } }
             );
 
@@ -381,10 +347,24 @@ async function checkoutCart(req, res) {
                         { $inc: { "variants.$.stock": dec.qty, totalStock: dec.qty } }
                     );
                 }
-                return res.status(400).json({ message: `Insufficient stock for "${item.titleSnapshot}". Please refresh your cart.` });
+                return res.status(400).json({
+                    message: `Insufficient stock for "${item.titleSnapshot}". Please refresh your cart.`
+                });
             }
 
             stockDecrements.push({ productId: item.product, variantId: item.variantId, qty: item.quantity });
+
+            const commissionPercent = item.seller
+                ? (sellerCommissionMap[String(item.seller)] ?? 10)
+                : 0;
+            const commissionAmount = parseFloat((totalPrice * commissionPercent / 100).toFixed(2));
+            const sellerPayoutAmount = parseFloat((totalPrice - commissionAmount).toFixed(2));
+
+            const itemTaxRate = product.taxRatePercent || 0;
+            const itemTaxAmount = parseFloat((totalPrice * itemTaxRate / 100).toFixed(2));
+            taxAmount += itemTaxAmount;
+
+            subtotal += totalPrice;
 
             orderItems.push({
                 product: item.product,
@@ -394,16 +374,23 @@ async function checkoutCart(req, res) {
                 quantity: item.quantity,
                 unitPrice,
                 totalPrice,
-                pricingMode: item.pricingMode,
+                pricingMode,
                 appliedTier: pricing.appliedTier,
+                commissionPercent,
+                commissionAmount,
+                sellerPayoutAmount,
                 titleSnapshot: item.titleSnapshot,
                 skuSnapshot: item.skuSnapshot,
                 imageSnapshot: item.imageSnapshot
             });
-
-            subtotal += totalPrice;
         }
 
+        subtotal = parseFloat(subtotal.toFixed(2));
+        taxAmount = parseFloat(taxAmount.toFixed(2));
+        const shippingAmount = parseFloat((reqShipping || 0).toFixed(2));
+        const grandTotal = parseFloat((subtotal + taxAmount + shippingAmount).toFixed(2));
+
+        // ── Step 4: Create order ───────────────────────────────────────────
         let order;
         try {
             order = await Order.create({
@@ -415,7 +402,9 @@ async function checkoutCart(req, res) {
                 billingAddress,
                 paymentMethod,
                 subtotal,
-                grandTotal: subtotal
+                taxAmount,
+                shippingAmount,
+                grandTotal
             });
         } catch (err) {
             // Restore all stock if order creation fails
@@ -428,21 +417,18 @@ async function checkoutCart(req, res) {
             throw err;
         }
 
+        // ── Step 5: Clear cart ─────────────────────────────────────────────
         cart.items = [];
         cart.subtotal = 0;
+        cart.taxAmount = 0;
+        cart.shippingAmount = 0;
+        cart.discountAmount = 0;
         cart.grandTotal = 0;
         await cart.save();
 
-        res.json({
-            message: "Order placed successfully",
-            order
-        });
-    }
-    catch (error) {
-        res.status(500).json({
-            message: "Checkout failed",
-            error: error.message
-        });
+        res.json({ message: "Order placed successfully", order });
+    } catch (error) {
+        res.status(500).json({ message: "Checkout failed", error: error.message });
     }
 }
 
@@ -453,4 +439,4 @@ module.exports = {
     removeItem,
     clearCart,
     checkoutCart
-}
+};

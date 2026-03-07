@@ -17,6 +17,7 @@ const {
   verifyOtpGst
 } = require("../../controllers/seller/sellerController");
 const flagRoutes = require("./flagRoutes");
+const dashboardRoutes = require("./dashboardRoutes");
 
 const router = express.Router();
 
@@ -34,6 +35,7 @@ router.get("/aadhaar/:id", requireUserAuth, getAadhaarById);
 router.delete("/delete", requireSellerAuth, deleteSeller);
 
 // Nested routes
+router.use("/dashboard", requireAuth, requireSellerAuth, dashboardRoutes);
 router.use("/products", requireAuth, requireSellerAuth, productRoutes);
 router.use("/store", requireAuth, requireSellerAuth, storeRoutes);
 router.use("/orders", requireAuth, requireSellerAuth, orderRoutes);
