@@ -7,6 +7,7 @@ const storeSchema = new mongoose.Schema(
     logoUrl: { type: String, trim: true, default: "" },
     bannerUrl: { type: String, trim: true, default: "" },
     isActive: { type: Boolean, default: true },
+    sellerMode: { type: String, enum: ["retail", "wholesale", "hybrid"], default: "retail", index: true },
     serviceablePostalCodes: [{ type: String, trim: true }],
     returnPolicy: { type: String, trim: true, default: "" },
     location: {

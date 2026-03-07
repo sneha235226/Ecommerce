@@ -123,7 +123,6 @@ async function buyNow(req, res) {
                 grandTotal
             });
         } catch (err) {
-            // Restore stock if order creation fails
             await Product.updateOne(
                 { _id: product._id, "variants._id": variantId },
                 { $inc: { "variants.$.stock": finalQty, totalStock: finalQty } }

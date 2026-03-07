@@ -72,6 +72,18 @@ const userSchema = new mongoose.Schema(
     passwordResetOtpExpires: { type: Date, default: null, select: false },
     passwordResetToken: { type: String, default: null, select: false },
     passwordResetExpires: { type: Date, default: null, select: false },
+    lastLocation: {
+      type: {
+        type: String,
+        enum: ["Point"],
+        default: "Point",
+      },
+      coordinates: {
+        type: [Number], // [longitude, latitude]
+        default: undefined,
+      },
+      updatedAt: { type: Date, default: null },
+    },
     flagCount: {
       type: Number,
       default: 0
@@ -86,5 +98,6 @@ const userSchema = new mongoose.Schema(
 
 userSchema.index({ role: 1, createdAt: -1 });
 userSchema.index({ isBlocked: 1, isActive: 1 });
+userSchema.index({ "lastLocation": "2dsphere" }, { sparse: true });
 
 module.exports = mongoose.models.User || mongoose.model("User", userSchema);

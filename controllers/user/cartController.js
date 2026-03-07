@@ -7,7 +7,7 @@ const { getBulkPrice, generateOrderNumber } = require("../../utils/orderUtils");
 // Derives the effective pricing mode for a single purchase
 function resolvePricingMode(sellerMode, appliedTier) {
     if (sellerMode === "hybrid") return appliedTier ? "wholesale" : "retail";
-    return sellerMode; // "retail" or "wholesale"
+    return sellerMode;
 }
 
 function validateAddress(addr, label) {

@@ -100,14 +100,18 @@ async function login(req, res) {
       return res.status(401).json({ message: "Account is inactive. Please contact admin for more information or create new account" });
     }
 
-    if(user.isEmailVerified === false && email) {
-      return res.status(403).json({ message: "Email not verified. Please verify your email before logging in." });
+    const needsEmailVerify = user.isEmailVerified === false && !!user.email
+    const needsPhoneVerify = user.isPhoneVerified === false && !!user.phone
+    if (needsEmailVerify || needsPhoneVerify) {
+      return res.status(403).json({
+        message: "Account not verified. Please verify your email and phone.",
+        userId: user._id,
+        email: user.email,
+        phone: user.phone,
+        isEmailVerified: user.isEmailVerified,
+        isPhoneVerified: user.isPhoneVerified,
+      })
     }
-
-    if(user.isPhoneVerified === false && phone) {
-      return res.status(403).json({ message: "Phone number not verified. Please verify your phone number before logging in." });
-    }
-
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
       return res.status(401).json({ message: "Invalid credentials" });
@@ -348,6 +352,17 @@ async function loginWithEmailOtp(req, res) {
     if (!user || user.isActive === false) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
+    const needsPhoneVerify = user.isPhoneVerified === false && !!user.phone
+    if (needsEmailVerify || needsPhoneVerify) {
+      return res.status(403).json({
+        message: "Account not verified. Please verify your email and phone.",
+        userId: user._id,
+        email: user.email,
+        phone: user.phone,
+        isEmailVerified: user.isEmailVerified,
+        isPhoneVerified: user.isPhoneVerified,
+      })
+    }
     if (!otp) {
       // Always send OTP and do not login in this step
       const { otp: generatedOtp, hashedOtp } = generateOtp();
@@ -368,6 +383,7 @@ async function loginWithEmailOtp(req, res) {
     if (user.emailVerificationExpires < new Date()) {
       return res.status(400).json({ message: "OTP has expired. Please request a new one." });
     }
+
     const hashedInput = crypto.createHash("sha256").update(String(otp)).digest("hex");
     if (hashedInput !== user.emailVerificationOtp) {
       return res.status(400).json({ message: "Invalid OTP. Please try again." });
@@ -399,6 +415,17 @@ async function loginWithPhoneOtp(req, res) {
     if (!user || user.isActive === false) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
+    const needsPhoneVerify = user.isPhoneVerified === false && !!user.phone
+    if (needsEmailVerify || needsPhoneVerify) {
+      return res.status(403).json({
+        message: "Account not verified. Please verify your email and phone.",
+        userId: user._id,
+        email: user.email,
+        phone: user.phone,
+        isEmailVerified: user.isEmailVerified,
+        isPhoneVerified: user.isPhoneVerified,
+      })
+    }
     if (!otp) {
       // Always send OTP and do not login in this step
       const { otp: generatedOtp, hashedOtp } = generateOtp();
@@ -423,6 +450,7 @@ async function loginWithPhoneOtp(req, res) {
     if (hashedInput !== user.phoneVerificationOtp) {
       return res.status(400).json({ message: "Invalid OTP. Please try again." });
     }
+    const needsEmailVerify = user.isEmailVerified === false && !!user.email
     user.isPhoneVerified = true;
     user.phoneVerificationOtp = null;
     user.phoneVerificationExpires = null;

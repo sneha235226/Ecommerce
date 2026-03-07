@@ -16,6 +16,7 @@ const {
     setDefaultAddress,
     deleteAccount
 } = require("../../controllers/user/userController");
+const { saveLocation } = require("../../controllers/user/locationController");
 const router = express.Router();
 
 router.use(requireAuth);
@@ -29,6 +30,7 @@ router.patch("/addresses/:addressId", requireUserAuth, updateAddress);
 router.delete("/addresses/:addressId", requireUserAuth, deleteAddress);
 router.patch("/addresses/:addressId/default", requireUserAuth, setDefaultAddress);
 router.delete("/delete-account", requireUserAuth, deleteAccount);
+router.patch("/location", requireUserAuth, saveLocation);
 
 router.use("/cart", cartRoutes);
 router.use("/order", orderRoutes);
