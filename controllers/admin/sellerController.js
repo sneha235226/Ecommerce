@@ -95,7 +95,6 @@ async function approveSeller(req, res) {
   }
 }
 
-
 async function rejectSeller(req, res) {
   try {
     const { reason } = req.body;

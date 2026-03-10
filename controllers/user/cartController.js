@@ -2,6 +2,7 @@ const Cart = require("../../models/Cart");
 const Order = require("../../models/Order");
 const Product = require("../../models/Product");
 const Seller = require("../../models/Seller");
+const AdminSettings = require("../../models/AdminSettings");
 const { getBulkPrice, generateOrderNumber } = require("../../utils/orderUtils");
 
 // Derives the effective pricing mode for a single purchase
@@ -51,6 +52,13 @@ async function addToCart(req, res) {
         const product = await Product.findById(productId);
         if (!product || !product.isActive) {
             return res.status(404).json({ message: "Product not available" });
+        }
+
+        if (product.sellerMode === "wholesale" || product.sellerMode === "hybrid") {
+            const settings = await AdminSettings.getSettings();
+            if (!settings.wholesaleEnabled && product.sellerMode === "wholesale") {
+                return res.status(403).json({ message: "Wholesale products are currently unavailable" });
+            }
         }
 
         const variant = product.variants.id(variantId);
@@ -304,14 +312,16 @@ async function checkoutCart(req, res) {
             )
         ];
 
-        const sellerDocs = await Seller.find(
-            { _id: { $in: uniqueSellerIds } },
-            { commissionPercent: 1 }
-        );
+        const [sellerDocs, settings] = await Promise.all([
+            Seller.find({ _id: { $in: uniqueSellerIds } }, { commissionPercent: 1 }),
+            AdminSettings.getSettings()
+        ]);
+
+        const defaultCommission = settings.defaultCommissionPercent ?? 10;
 
         const sellerCommissionMap = {};
         for (const s of sellerDocs) {
-            sellerCommissionMap[String(s._id)] = s.commissionPercent ?? 10;
+            sellerCommissionMap[String(s._id)] = s.commissionPercent ?? defaultCommission;
         }
 
         // ── Step 3: Atomic stock decrements + build order items ───────────
@@ -355,7 +365,7 @@ async function checkoutCart(req, res) {
             stockDecrements.push({ productId: item.product, variantId: item.variantId, qty: item.quantity });
 
             const commissionPercent = item.seller
-                ? (sellerCommissionMap[String(item.seller)] ?? 10)
+                ? (sellerCommissionMap[String(item.seller)] ?? defaultCommission)
                 : 0;
             const commissionAmount = parseFloat((totalPrice * commissionPercent / 100).toFixed(2));
             const sellerPayoutAmount = parseFloat((totalPrice - commissionAmount).toFixed(2));

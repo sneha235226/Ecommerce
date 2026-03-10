@@ -1,6 +1,5 @@
 const Product = require("../../models/Product");
 const Store = require("../../models/Store");
-const Seller = require("../../models/Seller");
 const Category = require("../../models/Category");
 const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const s3 = require("../../config/s3");
@@ -33,6 +32,7 @@ async function deleteS3Files(files) {
         }
     }
 }
+
 function extractKeysFromUrls(urls = []) {
     return urls
         .filter(Boolean)
@@ -75,7 +75,6 @@ async function createProduct(req, res) {
             tags,
             searchKeywords,
             targetAudience,
-            sellerMode,
             moq,
             bulkPricing,
             basePrice,
@@ -95,16 +94,7 @@ async function createProduct(req, res) {
 
         }
 
-        const seller = await Seller.findOne({
-            user: req.user._id
-        })
-
-        if (!seller || seller.status !== "approved") {
-            await deleteS3Files(req.files)
-            return res.status(403).json({
-                message: "Seller not approved"
-            })
-        }
+        const seller = req.seller;
 
         const store = await Store.findOne({
             seller: seller._id,
@@ -145,6 +135,26 @@ async function createProduct(req, res) {
         if (!categoryExists) {
             await deleteS3Files(req.files);
             return res.status(400).json({ message: "Invalid category" });
+        }
+
+        // Validate and default targetAudience based on seller.mode
+        // retail seller   → can only create B2C products
+        // wholesale seller → can only create B2B products
+        // hybrid seller   → can create B2C, B2B, or both
+        const audienceAllowed = {
+            retail: ["B2C"],
+            wholesale: ["B2B"],
+            hybrid: ["B2C", "B2B", "both"]
+        };
+        const audienceDefault = { retail: "B2C", wholesale: "B2B", hybrid: "both" };
+        const allowedAudiences = audienceAllowed[seller.mode] || ["B2C"];
+        const finalTargetAudience = targetAudience || audienceDefault[seller.mode] || "B2C";
+
+        if (!allowedAudiences.includes(finalTargetAudience)) {
+            await deleteS3Files(req.files);
+            return res.status(400).json({
+                message: `A ${seller.mode} seller can only create products with targetAudience: ${allowedAudiences.join(" or ")}`
+            });
         }
 
         let slugBase = generateSlug(title)
@@ -206,8 +216,8 @@ async function createProduct(req, res) {
             images,
             videos,
             variants: safeVariants,
-            targetAudience,
-            sellerMode,
+            targetAudience: finalTargetAudience,
+            sellerMode: finalTargetAudience === "B2C" ? "retail" : finalTargetAudience === "B2B" ? "wholesale" : "hybrid",
             moq: Number(moq) || 1,
             bulkPricing: bulkPricing
                 ? JSON.parse(bulkPricing)
@@ -238,16 +248,7 @@ async function createProduct(req, res) {
 async function updateProduct(req, res) {
     try {
         const { id } = req.params
-        const seller = await Seller.findOne({
-            user: req.user._id
-        })
-
-        if (!seller) {
-            await deleteS3Files(req.files)
-            return res.status(404).json({
-                message: "Seller not found"
-            })
-        }
+        const seller = req.seller;
 
         const product = await Product.findOne({
             _id: id,
@@ -269,7 +270,6 @@ async function updateProduct(req, res) {
             tags,
             searchKeywords,
             targetAudience,
-            sellerMode,
             moq,
             discountPercent,
             taxRatePercent,
@@ -304,11 +304,10 @@ async function updateProduct(req, res) {
         if (searchKeywords)
             product.searchKeywords = JSON.parse(searchKeywords)
 
-        if (targetAudience)
+        if (targetAudience) {
             product.targetAudience = targetAudience
-
-        if (sellerMode)
-            product.sellerMode = sellerMode
+            product.sellerMode = targetAudience === "B2C" ? "retail" : targetAudience === "B2B" ? "wholesale" : "hybrid"
+        }
 
         if (moq)
             product.moq = Number(moq)
@@ -404,15 +403,7 @@ async function updateProduct(req, res) {
 async function deleteProduct(req, res) {
     try {
         const { id } = req.params
-        const seller = await Seller.findOne({
-            user: req.user._id
-        })
-
-        if (!seller) {
-            return res.status(404).json({
-                message: "Seller not found"
-            })
-        }
+        const seller = req.seller;
 
         const product = await Product.findOne({
             _id: id,
@@ -453,12 +444,7 @@ async function getAllMyProducts(req, res) {
         const limit = Number(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
-        const seller = await Seller.findOne({ user: req.user._id });
-        if (!seller) {
-            return res.status(404).json({
-                message: "Seller not found"
-            });
-        }
+        const seller = req.seller;
 
         const [products, total] = await Promise.all([
             Product.find({ seller: seller._id })
@@ -529,10 +515,7 @@ async function updateStock(req, res) {
             return res.status(400).json({ message: "Stock cannot be negative" })
         }
 
-        const seller = await Seller.findOne({ user: req.user._id })
-        if (!seller) {
-            return res.status(404).json({ message: "Seller not found" })
-        }
+        const seller = req.seller;
 
         const product = await Product.findOne({ _id: id, seller: seller._id })
         if (!product) {
@@ -562,10 +545,7 @@ async function updateStock(req, res) {
 
 async function getLowStockProducts(req, res) {
     try {
-        const seller = await Seller.findOne({ user: req.user._id })
-        if (!seller) {
-            return res.status(404).json({ message: "Seller not found" })
-        }
+        const seller = req.seller;
 
         const page = Number(req.query.page) || 1
         const limit = Number(req.query.limit) || 10

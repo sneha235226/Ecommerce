@@ -1,12 +1,9 @@
-const Seller = require("../../models/Seller");
 const sellerFlag = require("../../models/sellerFlag");
 const User = require("../../models/User");
 
 async function flagUser(req, res) {
     try {
-        const seller = await Seller.findOne({
-            user: req.user._id
-        })
+        const seller = req.seller;
 
         const {
             userId,
@@ -52,15 +49,7 @@ async function flagUser(req, res) {
 
 async function getSellerFlags(req, res) {
     try {
-        const seller = await Seller.findOne({
-            user: req.user._id
-        })
-
-        if (!seller) {
-            return res.status(404).json({
-                message: "Seller not found"
-            })
-        }
+        const seller = req.seller;
 
         const page = parseInt(req.query.page) || 1
         const limit = parseInt(req.query.limit) || 10

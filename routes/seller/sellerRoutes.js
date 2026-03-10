@@ -1,11 +1,10 @@
 const express = require("express");
-const { requireAuth, requireSellerAuth, requireUserAuth } = require("../../middleware/auth");
+const { requireSellerAuth, requireAnySellerAuth } = require("../../middleware/auth");
 const productRoutes = require("./productRoutes");
 const storeRoutes = require("./storeRoutes");
 const orderRoutes = require("./orderRoutes");
 const contactQueryRoutes = require("./contactQueryRoutes");
 const {
-  createSeller,
   getMySellerProfile,
   updateSeller,
   verifySellerBusinessPan,
@@ -21,25 +20,25 @@ const dashboardRoutes = require("./dashboardRoutes");
 
 const router = express.Router();
 
-router.post("/", requireAuth, createSeller);
+// Pre-approval routes — seller exists but may not be approved yet
+router.get("/me", requireAnySellerAuth, getMySellerProfile);
+router.patch("/update", requireAnySellerAuth, updateSeller);
+router.post("/verify-pan", requireAnySellerAuth, verifySellerBusinessPan);
+router.delete("/delete", requireAnySellerAuth, deleteSeller);
 
-// Seller routes first
-router.get("/me", requireSellerAuth, getMySellerProfile);
-router.patch("/update", requireSellerAuth, updateSeller);
-router.post("/verify-pan", requireSellerAuth, verifySellerBusinessPan);
-router.post("/send-gst-otp", sendOtpGst);
-router.post("/verify-gst-otp", verifyOtpGst);
-router.post("/otp", requireUserAuth, sendAadhaarOtp);
-router.post("/otp/verify", requireUserAuth, verifyOtpAadhar);
-router.get("/aadhaar/:id", requireUserAuth, getAadhaarById);
-router.delete("/delete", requireSellerAuth, deleteSeller);
+// KYC — Aadhaar & GST (require seller token, no approval needed)
+router.post("/send-gst-otp", requireAnySellerAuth, sendOtpGst);
+router.post("/verify-gst-otp", requireAnySellerAuth, verifyOtpGst);
+router.post("/aadhaar/send-otp", requireAnySellerAuth, sendAadhaarOtp);
+router.post("/aadhaar/verify-otp", requireAnySellerAuth, verifyOtpAadhar);
+router.get("/aadhaar/:id", requireAnySellerAuth, getAadhaarById);
 
-// Nested routes
-router.use("/dashboard", requireAuth, requireSellerAuth, dashboardRoutes);
-router.use("/products", requireAuth, requireSellerAuth, productRoutes);
-router.use("/store", requireAuth, requireSellerAuth, storeRoutes);
-router.use("/orders", requireAuth, requireSellerAuth, orderRoutes);
-router.use("/flags", requireAuth, requireSellerAuth, flagRoutes);
-router.use("/contact-queries", requireAuth, requireSellerAuth, contactQueryRoutes);
+// Nested routes — require approved seller
+router.use("/dashboard", requireSellerAuth, dashboardRoutes);
+router.use("/products", requireSellerAuth, productRoutes);
+router.use("/store", requireSellerAuth, storeRoutes);
+router.use("/orders", requireSellerAuth, orderRoutes);
+router.use("/flags", requireSellerAuth, flagRoutes);
+router.use("/contact-queries", requireSellerAuth, contactQueryRoutes);
 
 module.exports = router;

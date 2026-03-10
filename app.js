@@ -1,6 +1,7 @@
 const express = require("express");
 const userAuthRoutes = require("./routes/auth/userAuth");
 const adminAuthRoutes = require("./routes/auth/adminAuth");
+const sellerAuthRoutes = require("./routes/auth/sellerAuth");
 const userRoutes = require("./routes/user/userRoutes");
 const sellerRoutes = require("./routes/seller/sellerRoutes");
 const adminRoutes = require("./routes/admin/adminRoutes");
@@ -20,6 +21,7 @@ app.get("/health", (req, res) => {
 
 app.use("/api/auth", userAuthRoutes);
 app.use("/api/auth/admin", adminAuthRoutes);
+app.use("/api/auth/seller", sellerAuthRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/sellers", sellerRoutes);
 app.use("/api/admins", adminRoutes);

@@ -80,14 +80,26 @@ const productSchema = new mongoose.Schema(
     taxRatePercent: { type: Number, min: 0, max: 100, default: 0 },
     specifications: { type: [specificationSchema], default: [] },
     lowStockThreshold: { type: Number, min: 0, default: 5 },
-    allowCod: { type: Boolean, default: true },
+    allowCod: { type: Boolean, default: true }
   },
   { timestamps: true }
 );
 
 productSchema.index({ title: "text", description: "text", brand: "text", tags: "text", searchKeywords: "text" });
-productSchema.index({ category: 1, subcategory: 1, isActive: 1, createdAt: -1 });
+
+// Toggle-based product browsing — most frequent public query
+productSchema.index({ targetAudience: 1, isActive: 1, createdAt: -1 });
+
+// Category/subcategory pages with toggle
+productSchema.index({ category: 1, targetAudience: 1, isActive: 1, createdAt: -1 });
+productSchema.index({ subcategory: 1, targetAudience: 1, isActive: 1, createdAt: -1 });
+
+// Store page with toggle
+productSchema.index({ store: 1, targetAudience: 1, isActive: 1, createdAt: -1 });
+
+// Seller dashboard product management
 productSchema.index({ store: 1, seller: 1, createdAt: -1 });
+
 productSchema.index({ ratingAverage: -1, basePrice: 1 });
 
 // Ensure unique slug per store

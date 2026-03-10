@@ -2,10 +2,22 @@ const Store = require("../../models/Store");
 const Product = require("../../models/Product");
 const AdminSettings = require("../../models/AdminSettings");
 
-// Translates toggle mode to sellerMode array (mirrors productController)
-function getModeFilter(mode) {
+// Used in $geoNear query on the Store collection.
+// store.sellerMode is denormalized from seller.mode — tells us what type of store it is.
+//   retail    → carries B2C products
+//   wholesale → carries B2B products
+//   hybrid    → carries both
+function getStoreModeFilter(mode) {
     if (mode === "wholesale") return ["wholesale", "hybrid"];
     return ["retail", "hybrid"]; // default = retail
+}
+
+// Used when querying the Product collection.
+// Toggle filters by targetAudience — who the product is intended for.
+//   "both" products appear in BOTH retail and wholesale modes.
+function getProductAudienceFilter(mode) {
+    if (mode === "wholesale") return ["B2B", "both"];
+    return ["B2C", "both"]; // default = retail
 }
 
 // GET /api/public/stores/nearby
@@ -26,12 +38,21 @@ async function getNearbyStores(req, res) {
         }
 
         const settings = await AdminSettings.getSettings();
+
+        if (!settings.nearbyStoresEnabled) {
+            return res.status(403).json({ message: "Nearby stores feature is currently disabled" });
+        }
+
+        if (mode === "wholesale" && !settings.wholesaleEnabled) {
+            return res.status(403).json({ message: "Wholesale is currently disabled" });
+        }
+
         const radiusMeters = settings.nearbyStoreRadiusKm * 1000;
-        const modeFilter = getModeFilter(mode);
+        const storeModeFilter = getStoreModeFilter(mode);
         const skip = (Number(page) - 1) * Number(limit);
 
-        // $geoNear must be the first stage in the aggregation pipeline
-        // It filters by maxDistance + query simultaneously — single index scan
+        // $geoNear must be the first stage in the aggregation pipeline.
+        // Filters by maxDistance + store.sellerMode simultaneously — single index scan.
         const stores = await Store.aggregate([
             {
                 $geoNear: {
@@ -41,7 +62,7 @@ async function getNearbyStores(req, res) {
                     spherical: true,
                     query: {
                         isActive: true,
-                        sellerMode: { $in: modeFilter }
+                        sellerMode: { $in: storeModeFilter }
                     }
                 }
             },
@@ -56,7 +77,7 @@ async function getNearbyStores(req, res) {
                     ]
                 }
             },
-            { $unwind: { path: "$sellerInfo", preserveNullAndEmpty: true } },
+            { $unwind: { path: "$sellerInfo", preserveNullAndEmptyArrays: true } },
             {
                 $project: {
                     _id: 1,
@@ -84,7 +105,7 @@ async function getNearbyStores(req, res) {
                     spherical: true,
                     query: {
                         isActive: true,
-                        sellerMode: { $in: modeFilter }
+                        sellerMode: { $in: storeModeFilter }
                     }
                 }
             },
@@ -127,11 +148,21 @@ async function getNearbyStoreProducts(req, res) {
         }
 
         const settings = await AdminSettings.getSettings();
+
+        if (!settings.nearbyStoresEnabled) {
+            return res.status(403).json({ message: "Nearby stores feature is currently disabled" });
+        }
+
+        if (mode === "wholesale" && !settings.wholesaleEnabled) {
+            return res.status(403).json({ message: "Wholesale is currently disabled" });
+        }
+
         const radiusMeters = settings.nearbyStoreRadiusKm * 1000;
-        const modeFilter = getModeFilter(mode);
+        const storeModeFilter = getStoreModeFilter(mode);
+        const audienceFilter = getProductAudienceFilter(mode);
         const skip = (Number(page) - 1) * Number(limit);
 
-        // Step 1: get nearby store IDs (lightweight — only _id)
+        // Step 1: get nearby store IDs filtered by store type (lightweight — only _id)
         const nearbyStores = await Store.aggregate([
             {
                 $geoNear: {
@@ -139,7 +170,7 @@ async function getNearbyStoreProducts(req, res) {
                     distanceField: "d",
                     maxDistance: radiusMeters,
                     spherical: true,
-                    query: { isActive: true, sellerMode: { $in: modeFilter } }
+                    query: { isActive: true, sellerMode: { $in: storeModeFilter } }
                 }
             },
             { $project: { _id: 1 } }
@@ -158,11 +189,12 @@ async function getNearbyStoreProducts(req, res) {
 
         const storeIds = nearbyStores.map(s => s._id);
 
-        // Step 2: query products in those stores, same mode filter on product
+        // Step 2: query products by targetAudience — who can see these products
+        // "both" products appear in both retail and wholesale mode
         const productFilter = {
             store: { $in: storeIds },
             isActive: true,
-            sellerMode: { $in: modeFilter }
+            targetAudience: { $in: audienceFilter }
         };
 
         const [products, total] = await Promise.all([
@@ -189,20 +221,4 @@ async function getNearbyStoreProducts(req, res) {
     }
 }
 
-// GET /api/public/stores/:storeId
-async function getStoreById(req, res) {
-    try {
-        const store = await Store.findOne({ _id: req.params.storeId, isActive: true })
-            .populate("seller", "businessName ratingAverage ratingCount");
-
-        if (!store) {
-            return res.status(404).json({ message: "Store not found" });
-        }
-
-        return res.status(200).json({ message: "Store fetched successfully", store });
-    } catch (error) {
-        return res.status(500).json({ message: "Failed to fetch store", error: error.message });
-    }
-}
-
-module.exports = { getNearbyStores, getNearbyStoreProducts, getStoreById };
+module.exports = { getNearbyStores, getNearbyStoreProducts };

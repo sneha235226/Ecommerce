@@ -1,6 +1,7 @@
 const Order = require("../../models/Order");
 const Product = require("../../models/Product");
 const Seller = require("../../models/Seller");
+const AdminSettings = require("../../models/AdminSettings");
 const { getBulkPrice, generateOrderNumber, deriveOrderStatus } = require("../../utils/orderUtils");
 
 function resolvePricingMode(sellerMode, appliedTier) {
@@ -47,6 +48,13 @@ async function buyNow(req, res) {
             return res.status(404).json({ message: "Product not found" });
         }
 
+        if (product.sellerMode === "wholesale") {
+            const settings = await AdminSettings.getSettings();
+            if (!settings.wholesaleEnabled) {
+                return res.status(403).json({ message: "Wholesale products are currently unavailable" });
+            }
+        }
+
         const variant = product.variants.id(variantId);
         if (!variant || !variant.isActive) {
             return res.status(404).json({ message: "Variant not found" });
@@ -68,10 +76,12 @@ async function buyNow(req, res) {
         const totalPrice = parseFloat((unitPrice * finalQty).toFixed(2));
 
         // Commission & payout
-        const sellerDoc = product.seller
-            ? await Seller.findById(product.seller).select("commissionPercent")
-            : null;
-        const commissionPercent = sellerDoc?.commissionPercent ?? 10;
+        const [sellerDoc, settings] = await Promise.all([
+            product.seller ? Seller.findById(product.seller).select("commissionPercent") : Promise.resolve(null),
+            AdminSettings.getSettings()
+        ]);
+        const defaultCommission = settings.defaultCommissionPercent ?? 10;
+        const commissionPercent = sellerDoc?.commissionPercent ?? defaultCommission;
         const commissionAmount = parseFloat((totalPrice * commissionPercent / 100).toFixed(2));
         const sellerPayoutAmount = parseFloat((totalPrice - commissionAmount).toFixed(2));
 

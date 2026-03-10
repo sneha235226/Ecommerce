@@ -1,20 +1,30 @@
 const Product = require("../../models/Product");
+const AdminSettings = require("../../models/AdminSettings");
 
-// Translates the frontend toggle to a sellerMode filter.
-// mode=retail    → retail + hybrid sellers
-// mode=wholesale → wholesale + hybrid sellers
-// (no mode)      → all products
+// Translates the frontend toggle to a targetAudience filter.
+// The toggle controls product VISIBILITY — who the product is intended for.
+//   mode=retail    → show products for B2C buyers  (targetAudience: B2C or both)
+//   mode=wholesale → show products for B2B buyers  (targetAudience: B2B or both)
+//   "both" products always appear in both modes.
+//   (no mode)      → show everything
 function getModeFilter(mode) {
-    if (mode === "wholesale") return { sellerMode: { $in: ["wholesale", "hybrid"] } };
-    if (mode === "retail") return { sellerMode: { $in: ["retail", "hybrid"] } };
+    if (mode === "wholesale") return { targetAudience: { $in: ["B2B", "both"] } };
+    if (mode === "retail") return { targetAudience: { $in: ["B2C", "both"] } };
     return {};
 }
 
 async function getProducts(req, res) {
     try {
         const { mode, page = 1, limit = 20 } = req.query;
-        const skip = (Number(page) - 1) * Number(limit);
 
+        if (mode === "wholesale") {
+            const settings = await AdminSettings.getSettings();
+            if (!settings.wholesaleEnabled) {
+                return res.status(403).json({ message: "Wholesale is currently disabled" });
+            }
+        }
+
+        const skip = (Number(page) - 1) * Number(limit);
         const filter = { isActive: true, ...getModeFilter(mode) };
 
         const [products, total] = await Promise.all([
@@ -56,9 +66,20 @@ async function getProductById(req, res) {
 async function getProductBySubcategory(req, res) {
     try {
         const { subcategory } = req.params;
+        const subcategoryExists = await Product.exists({ subcategory });
+        if (!subcategoryExists) {
+            return res.status(404).json({ message: "Subcategory not found or has no products" });
+        }
         const { mode, page = 1, limit = 20 } = req.query;
-        const skip = (Number(page) - 1) * Number(limit);
 
+        if (mode === "wholesale") {
+            const settings = await AdminSettings.getSettings();
+            if (!settings.wholesaleEnabled) {
+                return res.status(403).json({ message: "Wholesale is currently disabled" });
+            }
+        }
+
+        const skip = (Number(page) - 1) * Number(limit);
         const filter = { subcategory, isActive: true, ...getModeFilter(mode) };
 
         const [products, total] = await Promise.all([
@@ -87,8 +108,15 @@ async function getProductBySpecificStore(req, res) {
     try {
         const { store } = req.params;
         const { mode, page = 1, limit = 20 } = req.query;
-        const skip = (Number(page) - 1) * Number(limit);
 
+        if (mode === "wholesale") {
+            const settings = await AdminSettings.getSettings();
+            if (!settings.wholesaleEnabled) {
+                return res.status(403).json({ message: "Wholesale is currently disabled" });
+            }
+        }
+
+        const skip = (Number(page) - 1) * Number(limit);
         const filter = { store, isActive: true, ...getModeFilter(mode) };
 
         const [products, total] = await Promise.all([
