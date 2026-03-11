@@ -1,5 +1,6 @@
 const Order = require("../../models/Order");
 const Product = require("../../models/Product");
+const AdminSettings = require("../../models/AdminSettings");
 const { deriveOrderStatus } = require("../../utils/orderUtils");
 
 async function getSellerOrders(req, res) {
@@ -126,6 +127,17 @@ async function updateOrderItemStatus(req, res) {
                 { _id: item.product, "variants._id": item.variantId },
                 { $inc: { "variants.$.stock": item.quantity, totalStock: item.quantity } }
             );
+        }
+
+        // When item is delivered: start the return window, set payout on_hold
+        if (status === "delivered" && prevStatus !== "delivered") {
+            const settings = await AdminSettings.getSettings();
+            const returnWindowDays = settings.returnWindowDays ?? 7;
+            const holdUntil = new Date();
+            holdUntil.setDate(holdUntil.getDate() + returnWindowDays);
+            item.holdUntil = holdUntil;
+            item.payoutStatus = "on_hold";
+            if (!order.deliveredAt) order.deliveredAt = new Date();
         }
 
         order.status = deriveOrderStatus(order.items)

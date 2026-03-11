@@ -2,6 +2,7 @@ const express = require("express");
 const { requireAuth, requireUserAuth } = require("../../middleware/auth");
 const cartRoutes = require("./cartRoutes");
 const orderRoutes = require("./orderRoutes");
+const paymentRoutes = require("./paymentRoutes");
 const wishlistRoutes = require("./wishlistRoutes"); 
 const reviewRoutes = require("./reviewRoutes");
 const contactRoutes = require("./contactQueryRoutes");
@@ -32,6 +33,7 @@ router.delete("/delete-account", requireUserAuth, deleteAccount);
 
 router.use("/cart", cartRoutes);
 router.use("/order", orderRoutes);
+router.use("/payments", paymentRoutes);
 router.use("/wishlist", wishlistRoutes);
 router.use("/review", reviewRoutes);
 router.use("/contact-query", contactRoutes);

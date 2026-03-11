@@ -1,150 +1,6 @@
 const Order = require("../../models/Order");
 const Product = require("../../models/Product");
-const Seller = require("../../models/Seller");
-const AdminSettings = require("../../models/AdminSettings");
-const { getBulkPrice, generateOrderNumber, deriveOrderStatus } = require("../../utils/orderUtils");
-
-function resolvePricingMode(sellerMode, appliedTier) {
-    if (sellerMode === "hybrid") return appliedTier ? "wholesale" : "retail";
-    return sellerMode;
-}
-
-function validateAddress(addr, label) {
-    const required = ["fullName", "phone", "line1", "city", "postalCode", "country"];
-    for (const field of required) {
-        if (!addr?.[field]?.toString().trim()) {
-            return `${label}.${field} is required`;
-        }
-    }
-    return null;
-}
-
-async function buyNow(req, res) {
-    try {
-        const userId = req.user._id;
-        const {
-            productId,
-            variantId,
-            quantity,
-            shippingAddress,
-            billingAddress,
-            paymentMethod
-        } = req.body;
-
-        // Validate addresses early
-        const addrError =
-            validateAddress(shippingAddress, "shippingAddress") ||
-            validateAddress(billingAddress, "billingAddress");
-        if (addrError) {
-            return res.status(400).json({ message: addrError });
-        }
-
-        if (!paymentMethod) {
-            return res.status(400).json({ message: "paymentMethod is required" });
-        }
-
-        const product = await Product.findById(productId);
-        if (!product || !product.isActive) {
-            return res.status(404).json({ message: "Product not found" });
-        }
-
-        if (product.sellerMode === "wholesale") {
-            const settings = await AdminSettings.getSettings();
-            if (!settings.wholesaleEnabled) {
-                return res.status(403).json({ message: "Wholesale products are currently unavailable" });
-            }
-        }
-
-        const variant = product.variants.id(variantId);
-        if (!variant || !variant.isActive) {
-            return res.status(404).json({ message: "Variant not found" });
-        }
-
-        let finalQty = quantity || 1;
-
-        if (product.sellerMode === "wholesale" && finalQty < product.moq) {
-            return res.status(400).json({ message: `Minimum order quantity is ${product.moq}` });
-        }
-
-        if (finalQty > variant.stock) {
-            return res.status(400).json({ message: "Insufficient stock" });
-        }
-
-        const pricing = getBulkPrice(product, finalQty, variant.price);
-        const pricingMode = resolvePricingMode(product.sellerMode, pricing.appliedTier);
-        const unitPrice = pricing.price;
-        const totalPrice = parseFloat((unitPrice * finalQty).toFixed(2));
-
-        // Commission & payout
-        const [sellerDoc, settings] = await Promise.all([
-            product.seller ? Seller.findById(product.seller).select("commissionPercent") : Promise.resolve(null),
-            AdminSettings.getSettings()
-        ]);
-        const defaultCommission = settings.defaultCommissionPercent ?? 10;
-        const commissionPercent = sellerDoc?.commissionPercent ?? defaultCommission;
-        const commissionAmount = parseFloat((totalPrice * commissionPercent / 100).toFixed(2));
-        const sellerPayoutAmount = parseFloat((totalPrice - commissionAmount).toFixed(2));
-
-        // Tax
-        const taxRatePercent = product.taxRatePercent || 0;
-        const taxAmount = parseFloat((totalPrice * taxRatePercent / 100).toFixed(2));
-        const grandTotal = parseFloat((totalPrice + taxAmount).toFixed(2));
-
-        const item = {
-            product: product._id,
-            store: product.store,
-            seller: product.seller,
-            variantId,
-            quantity: finalQty,
-            unitPrice,
-            totalPrice,
-            pricingMode,
-            appliedTier: pricing.appliedTier,
-            commissionPercent,
-            commissionAmount,
-            sellerPayoutAmount,
-            titleSnapshot: product.title,
-            skuSnapshot: variant.sku,
-            imageSnapshot: variant.images?.[0] || product.images?.[0] || ""
-        };
-
-        // Atomic stock decrement — prevents race conditions / overselling
-        const stockResult = await Product.updateOne(
-            { _id: product._id, "variants._id": variantId, "variants.stock": { $gte: finalQty } },
-            { $inc: { "variants.$.stock": -finalQty, totalStock: -finalQty } }
-        );
-
-        if (stockResult.modifiedCount === 0) {
-            return res.status(400).json({ message: "Insufficient stock" });
-        }
-
-        let order;
-        try {
-            order = await Order.create({
-                user: userId,
-                orderType: pricingMode === "wholesale" ? "B2B" : "B2C",
-                orderNumber: generateOrderNumber(),
-                items: [item],
-                shippingAddress,
-                billingAddress,
-                paymentMethod,
-                subtotal: totalPrice,
-                taxAmount,
-                grandTotal
-            });
-        } catch (err) {
-            await Product.updateOne(
-                { _id: product._id, "variants._id": variantId },
-                { $inc: { "variants.$.stock": finalQty, totalStock: finalQty } }
-            );
-            throw err;
-        }
-
-        res.status(201).json({ message: "Order created successfully", order });
-    } catch (error) {
-        res.status(500).json({ message: "Order creation failed", error: error.message });
-    }
-}
+const { deriveOrderStatus } = require("../../utils/orderUtils");
 
 async function getMyOrders(req, res) {
     try {
@@ -216,6 +72,7 @@ async function cancelOrderItem(req, res) {
         }
 
         item.status = "cancelled";
+        item.payoutStatus = "cancelled";
         if (reason) item.cancellationReason = reason;
 
         await Product.updateOne(
@@ -236,4 +93,4 @@ async function cancelOrderItem(req, res) {
     }
 }
 
-module.exports = { buyNow, getMyOrders, getMyOrderById, cancelOrderItem };
+module.exports = { getMyOrders, getMyOrderById, cancelOrderItem };

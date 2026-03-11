@@ -1,6 +1,7 @@
 require("dotenv").config();
 const connectDB = require("./config/db");
 const app = require("./app");
+const { startPayoutCron } = require("./jobs/payoutCron");
 // const { ensureAdminSeeded } = require("./scripts/seedAdmin");
 // const { ensureSampleSellerSeeded } = require("./scripts/seedSampleSeller");
 
@@ -22,6 +23,8 @@ connectDB()
     app.listen(port, () => {
       console.log(`Server running on port ${port}`);
     });
+
+    startPayoutCron();
   })
   .catch((error) => {
     console.error("Database connection failed:", error.message);

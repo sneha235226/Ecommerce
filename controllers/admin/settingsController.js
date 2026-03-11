@@ -17,6 +17,7 @@ async function updateSettings(req, res) {
         const allowedFields = [
             "nearbyStoreRadiusKm",
             "defaultCommissionPercent",
+            "returnWindowDays",
             "wholesaleEnabled",
             "nearbyStoresEnabled"
         ];
@@ -47,6 +48,14 @@ async function updateSettings(req, res) {
                 return res.status(400).json({ message: "defaultCommissionPercent must be between 0 and 100" });
             }
             updates.defaultCommissionPercent = c;
+        }
+
+        if (updates.returnWindowDays !== undefined) {
+            const d = Number(updates.returnWindowDays);
+            if (isNaN(d) || d < 0 || d > 60) {
+                return res.status(400).json({ message: "returnWindowDays must be between 0 and 60" });
+            }
+            updates.returnWindowDays = d;
         }
 
         const settings = await AdminSettings.findOneAndUpdate(

@@ -7,6 +7,7 @@ const userRoutes = require("../admin/userRoutes");
 const dashboardRoutes = require("../admin/dashboardRoutes");
 const sellerRoutes = require("../admin/sellerRoutes");
 const settingsRoutes = require("../admin/settingsRoutes");
+const orderRoutes = require("../admin/orderRoutes");
 
 const router = express.Router();
 
@@ -18,5 +19,6 @@ router.use("/subcategory", subcategoryRoutes);
 router.use("/users", userRoutes);
 router.use("/sellers", sellerRoutes);
 router.use("/settings", settingsRoutes);
+router.use("/orders", orderRoutes);
 
 module.exports = router;

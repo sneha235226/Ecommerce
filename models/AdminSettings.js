@@ -10,6 +10,9 @@ const adminSettingsSchema = new mongoose.Schema(
         // Platform commission fallback (used if seller has no individual commission set)
         defaultCommissionPercent: { type: Number, min: 0, max: 100, default: 10 },
 
+        // Return window — how many days after delivery before seller payout is released
+        returnWindowDays: { type: Number, min: 0, max: 60, default: 7 },
+
         // Feature flags
         wholesaleEnabled: { type: Boolean, default: true },
         nearbyStoresEnabled: { type: Boolean, default: true },

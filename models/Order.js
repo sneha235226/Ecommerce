@@ -42,6 +42,23 @@ const orderItemSchema = new mongoose.Schema(
     commissionPercent: { type: Number, min: 0, max: 100, default: 0 },
     commissionAmount: { type: Number, min: 0, default: 0 },
     sellerPayoutAmount: { type: Number, min: 0, default: 0 },
+    // Payout tracking
+    payoutStatus: {
+      type: String,
+      enum: ["on_hold", "paid", "cancelled"],
+      default: "on_hold"
+    },
+    holdUntil: { type: Date, default: null },
+    razorpayPayoutId: { type: String, trim: true, default: "" },
+    // Return tracking
+    returnStatus: {
+      type: String,
+      enum: ["none", "requested", "approved", "rejected", "completed"],
+      default: "none"
+    },
+    returnReason: { type: String, trim: true, default: "" },
+    returnRequestedAt: { type: Date, default: null },
+    refundId: { type: String, trim: true, default: "" },
     titleSnapshot: { type: String, trim: true, required: true },
     skuSnapshot: { type: String, trim: true, required: true },
     imageSnapshot: { type: String, trim: true, default: "" },
@@ -87,6 +104,10 @@ const orderSchema = new mongoose.Schema(
     billingAddress: { type: orderAddressSchema, required: true },
     paymentMethod: { type: String, enum: ["cod", "upi", "card", "netbanking", "wallet"], required: true },
     paymentStatus: { type: String, enum: ["pending", "paid", "failed", "refunded", "partially_refunded"], default: "pending" },
+    // Razorpay
+    razorpayOrderId: { type: String, trim: true, default: "" },
+    razorpayPaymentId: { type: String, trim: true, default: "" },
+    razorpaySignature: { type: String, trim: true, default: "" },
     status: {
       type: String,
       enum: [
@@ -136,5 +157,6 @@ const orderSchema = new mongoose.Schema(
 orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ orderNumber: 1, paymentStatus: 1 });
 orderSchema.index({ "items.seller": 1, createdAt: -1 });
+orderSchema.index({ "items.payoutStatus": 1, "items.holdUntil": 1 }); // cron payout queries
 
 module.exports = mongoose.models.Order || mongoose.model("Order", orderSchema);
