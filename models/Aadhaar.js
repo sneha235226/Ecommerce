@@ -2,9 +2,9 @@ const mongoose = require("mongoose");
 
 const aadhaarSchema = new mongoose.Schema(
   {
-    userId: {
+    sellerId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "Seller",
       required: true,
       unique: true,
       index: true
@@ -38,4 +38,4 @@ const aadhaarSchema = new mongoose.Schema(
 
 aadhaarSchema.index({ aadharCardNumber: 1 }, { unique: true, sparse: true });
 
-module.exports = mongoose.model("Aadhaar", aadhaarSchema);
+module.exports = mongoose.models.Aadhaar || mongoose.model("Aadhaar", aadhaarSchema);

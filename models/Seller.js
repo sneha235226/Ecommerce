@@ -51,44 +51,85 @@ const sellerSchema = new mongoose.Schema(
     passwordResetOtpExpires: { type: Date, default: null, select: false },
     passwordResetToken: { type: String, default: null, select: false },
     passwordResetExpires: { type: Date, default: null, select: false },
+
+    // ── Top-level profile fields ─────────────────────────────────────────────
+    // businessName is auto-populated from GST or MSME — not collected at registration
+    businessName: { type: String, trim: true, default: "" },
     contactEmail: { type: String, trim: true, lowercase: true, default: "" },
     contactPhone: { type: String, trim: true, default: "" },
-    gstNumber: String,
-    gstVerified: {
-      type: Boolean,
-      default: false
-    },
+
+    // ── Onboarding verification flags ────────────────────────────────────────
+    aadhaarVerified: { type: Boolean, default: false },
+    panVerified:     { type: Boolean, default: false },
+    onboardingCompleted: { type: Boolean, default: false },
+
+    // ── Editable profile fields ──────────────────────────────────────────────
+    businessDescription: { type: String, trim: true, default: "" },
+
+    // ── Business data (auto-populated from GST or MSME, locked after verification)
+    organizationType:   { type: String, trim: true, default: "" },
+    businessActivities: { type: [String], default: [] },
     businessAddress: {
-      line1: { type: String, trim: true, default: "" },
-      line2: { type: String, trim: true, default: "" },
-      city: { type: String, trim: true, default: "" },
-      state: { type: String, trim: true, default: "" },
-      postalCode: { type: String, trim: true, default: "" },
-      country: { type: String, trim: true, default: "India" },
+      city:       { type: String, trim: true, default: "" },
+      state:      { type: String, trim: true, default: "" },
+      postalCode: { type: String, trim: true, default: "" }
     },
+
+    // ── GST verification (read-only after gst.verified=true) ─────────────────
+    gst: {
+      gstNumber:          { type: String, trim: true, default: "" },
+      businessName:       { type: String, trim: true, default: "" },
+      organizationType:   { type: String, trim: true, default: "" },
+      address:            { type: String, trim: true, default: "" },
+      city:               { type: String, trim: true, default: "" },
+      state:              { type: String, trim: true, default: "" },
+      pincode:            { type: String, trim: true, default: "" },
+      businessActivities: { type: [String], default: [] },
+      verified:           { type: Boolean, default: false },
+      verifiedAt:         { type: Date, default: null },
+      raw:                { type: mongoose.Schema.Types.Mixed, default: null, select: false }
+    },
+
+    // ── MSME/Udyam verification (read-only after msme.verified=true) ──────────
+    msme: {
+      udyamNumber:        { type: String, trim: true, default: "" },
+      businessName:       { type: String, trim: true, default: "" },
+      organizationType:   { type: String, trim: true, default: "" },
+      address:            { type: String, trim: true, default: "" },
+      city:               { type: String, trim: true, default: "" },
+      state:              { type: String, trim: true, default: "" },
+      pincode:            { type: String, trim: true, default: "" },
+      businessActivities: { type: [String], default: [] },
+      verified:           { type: Boolean, default: false },
+      verifiedAt:         { type: Date, default: null },
+      raw:                { type: mongoose.Schema.Types.Mixed, default: null, select: false }
+    },
+
+    // ── Bank details (read-only after bankDetails.verified=true) ─────────────
     bankDetails: {
       accountHolderName: { type: String, trim: true, default: "" },
-      accountNumber: { type: String, trim: true, default: "" },
-      ifsc: { type: String, trim: true, default: "" },
-      bankName: { type: String, trim: true, default: "" },
-      branchName: { type: String, trim: true, default: "" },
-      upiId: { type: String, trim: true, default: "" },
+      accountNumber:     { type: String, trim: true, default: "" },
+      ifsc:              { type: String, trim: true, default: "" },
+      bankName:          { type: String, trim: true, default: "" },
+      branchName:        { type: String, trim: true, default: "" },
+      upiId:             { type: String, trim: true, default: "" },
+      verified:          { type: Boolean, default: false },
+      verifiedAt:        { type: Date, default: null },
+      raw:               { type: mongoose.Schema.Types.Mixed, default: null, select: false }
     },
+
+    // ── PAN verification ─────────────────────────────────────────────────────
     panDetails: {
-      panNumber: { type: String, trim: true, default: "" },
-      nameAsPerPan: { type: String, trim: true, default: "" },
+      panNumber:           { type: String, trim: true, default: "" },
+      nameAsPerPan:        { type: String, trim: true, default: "" },
       dateOfIncorporation: { type: String, trim: true, default: "" },
     },
     panVerification: {
       status: { type: String, enum: ["unverified", "pending", "verified", "failed"], default: "unverified" },
     },
+
     documents: { type: [sellerDocumentSchema], default: [] },
     mode: { type: String, enum: ["retail", "wholesale", "hybrid"], default: "retail", index: true },
-    wholesaleCapabilities: {
-      moq: { type: Number, min: 1, default: 1 },
-      leadTimeDays: { type: Number, min: 0, default: 0 },
-      manufacturingCapacityPerMonth: { type: Number, min: 0, default: 0 },
-    },
     status: {
       type: String,
       enum: ["pending_approval", "approved", "rejected", "suspended"],
@@ -100,15 +141,15 @@ const sellerSchema = new mongoose.Schema(
       approvedAt: { type: Date, default: null },
       rejectionReason: { type: String, trim: true, default: "" },
     },
-    ratingAverage: { type: Number, min: 0, max: 5, default: 0 },
-    ratingCount: { type: Number, min: 0, default: 0 },
+    ratingAverage:     { type: Number, min: 0, max: 5, default: 0 },
+    ratingCount:       { type: Number, min: 0, default: 0 },
     commissionPercent: { type: Number, min: 0, max: 100, default: 10 },
-    escrowBalance: { type: Number, min: 0, default: 0 },
-    lastSettlementAt: { type: Date, default: null },
+    escrowBalance:     { type: Number, min: 0, default: 0 },
+    lastSettlementAt:  { type: Date, default: null },
   },
   { timestamps: true }
 );
 
-sellerSchema.index({ businessName: "text", legalBusinessName: "text", gstNumber: "text" });
+sellerSchema.index({ businessName: "text", "gst.gstNumber": "text" });
 
 module.exports = mongoose.models.Seller || mongoose.model("Seller", sellerSchema);

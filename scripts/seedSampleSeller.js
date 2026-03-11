@@ -200,7 +200,9 @@ async function ensureSampleSellerSeeded() {
   seller.legalBusinessName = sample.seller.legalBusinessName;
   seller.contactEmail = sample.seller.contactEmail;
   seller.contactPhone = sample.seller.contactPhone;
-  seller.gstNumber = sample.seller.gstNumber;
+  if (sample.seller.gstNumber) {
+    seller.gst = { ...seller.gst, gstNumber: sample.seller.gstNumber };
+  }
   seller.panDetails = sample.seller.panDetails;
   seller.businessAddress = sample.seller.businessAddress;
   seller.bankDetails = sample.seller.bankDetails;

@@ -111,7 +111,9 @@ async function verifySellerToken(req) {
     return { error: { status: 403, message: "Forbidden: seller token required" } };
   }
 
-  const seller = await Seller.findById(decoded.sub).select("-passwordHash");
+  const seller = await Seller.findById(decoded.sub).select(
+    "-passwordHash -gstData -msmeData -gstNumber -gstVerified -msmeVerified -bankVerified -bankVerifiedAt"
+  );
   if (!seller) {
     return { error: { status: 401, message: "Unauthorized: seller not found" } };
   }
@@ -159,4 +161,43 @@ async function requireSellerAuth(req, res, next) {
   }
 }
 
-module.exports = { requireAuth, requireUserAuth, requireAdminAuth, requireAnySellerAuth, requireSellerAuth };
+// Seller has completed all required KYC steps:
+//   aadhaarVerified + panVerified + bankDetails.verified + (gst.verified || msme.verified)
+// Must be placed AFTER requireSellerAuth or requireAnySellerAuth (needs req.seller).
+function requireOnboardingComplete(req, res, next) {
+    const s = req.seller;
+    if (!s) return res.status(401).json({ message: "Unauthorized" });
+
+    if (!s.aadhaarVerified) {
+        return res.status(403).json({
+            message: "Aadhaar verification is required to proceed",
+            step: "aadhaar",
+            onboardingCompleted: false
+        });
+    }
+    if (!s.panVerified) {
+        return res.status(403).json({
+            message: "PAN verification is required to proceed",
+            step: "pan",
+            onboardingCompleted: false
+        });
+    }
+    if (!s.bankDetails?.verified) {
+        return res.status(403).json({
+            message: "Bank account verification is required to proceed",
+            step: "bank",
+            onboardingCompleted: false
+        });
+    }
+    if (!s.gst?.verified && !s.msme?.verified) {
+        return res.status(403).json({
+            message: "GST or MSME verification is required to proceed",
+            step: "gst_or_msme",
+            onboardingCompleted: false
+        });
+    }
+
+    next();
+}
+
+module.exports = { requireAuth, requireUserAuth, requireAdminAuth, requireAnySellerAuth, requireSellerAuth, requireOnboardingComplete };

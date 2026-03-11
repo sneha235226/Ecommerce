@@ -19,10 +19,9 @@ async function listSellers(req, res) {
       const re = { $regex: req.query.search, $options: "i" };
       filter.$or = [
         { businessName: re },
-        { legalBusinessName: re },
         { contactEmail: re },
         { contactPhone: re },
-        { gstNumber: re },
+        { "gst.gstNumber": re },
       ];
     }
 
@@ -31,7 +30,7 @@ async function listSellers(req, res) {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
-        .populate("user", "firstName lastName email phone isBlocked isActive"),
+        .select("-gst.raw -msme.raw -bankDetails.raw"),
       Seller.countDocuments(filter),
     ]);
 
@@ -51,7 +50,7 @@ async function listSellers(req, res) {
 async function getSellerById(req, res) {
   try {
     const seller = await Seller.findById(req.params.id)
-      .populate("user", "firstName lastName email phone isBlocked isActive createdAt")
+      .select("-gst.raw -msme.raw -bankDetails.raw -gstData -msmeData -gstNumber -gstVerified -msmeVerified -bankVerified -bankVerifiedAt")
       .populate("approval.approvedBy", "name email");
 
     if (!seller) {
