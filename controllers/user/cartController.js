@@ -9,16 +9,6 @@ function resolvePricingMode(sellerMode, appliedTier) {
     return sellerMode;
 }
 
-function validateAddress(addr, label) {
-    const required = ["fullName", "phone", "line1", "city", "postalCode", "country"];
-    for (const field of required) {
-        if (!addr?.[field]?.toString().trim()) {
-            return `${label}.${field} is required`;
-        }
-    }
-    return null;
-}
-
 function calculateTotals(cart) {
     let subtotal = 0;
     let taxAmount = 0;

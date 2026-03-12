@@ -66,7 +66,8 @@ async function releasePayout(orderId, itemId) {
         throw new Error(`Payout not eligible: current status is "${item.payoutStatus}"`);
     }
 
-    if (item.returnStatus !== "none") {
+    // Allow payout if return was rejected (seller wins dispute) or no return was requested
+    if (item.returnStatus !== "none" && item.returnStatus !== "rejected") {
         throw new Error(`Payout blocked: return status is "${item.returnStatus}"`);
     }
 

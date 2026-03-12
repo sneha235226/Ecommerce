@@ -21,10 +21,14 @@ function generateOrderNumber() {
 }
 
 function deriveOrderStatus(items) {
+    const active = items.filter(i => i.status !== "cancelled" && i.status !== "rejected");
     const statuses = items.map(i => i.status);
+
     if (statuses.every(s => s === "delivered")) return "delivered";
     if (statuses.every(s => s === "cancelled" || s === "rejected")) return "cancelled";
+    if (active.length && active.every(i => i.status === "shipped")) return "shipped";
     if (statuses.some(s => s === "shipped" || s === "delivered")) return "partially_shipped";
+    if (active.length && active.every(i => i.status === "accepted")) return "accepted";
     return "placed";
 }
 

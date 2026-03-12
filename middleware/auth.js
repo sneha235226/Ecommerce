@@ -112,7 +112,7 @@ async function verifySellerToken(req) {
   }
 
   const seller = await Seller.findById(decoded.sub).select(
-    "-passwordHash -gstData -msmeData -gstNumber -gstVerified -msmeVerified -bankVerified -bankVerifiedAt"
+    "-passwordHash -gst.raw -msme.raw -bankDetails.raw"
   );
   if (!seller) {
     return { error: { status: 401, message: "Unauthorized: seller not found" } };

@@ -50,7 +50,7 @@ async function listSellers(req, res) {
 async function getSellerById(req, res) {
   try {
     const seller = await Seller.findById(req.params.id)
-      .select("-gst.raw -msme.raw -bankDetails.raw -gstData -msmeData -gstNumber -gstVerified -msmeVerified -bankVerified -bankVerifiedAt")
+      .select("-gst.raw -msme.raw -bankDetails.raw")
       .populate("approval.approvedBy", "name email");
 
     if (!seller) {

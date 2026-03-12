@@ -3,7 +3,7 @@ const Order = require("../models/Order");
 const { releasePayout } = require("../services/payoutService");
 
 // Runs every hour — finds eligible items and releases seller payouts.
-// Eligible = payoutStatus:on_hold AND holdUntil <= now AND returnStatus:none
+// Eligible = payoutStatus:on_hold AND holdUntil <= now AND returnStatus in [none, rejected]
 function startPayoutCron() {
     cron.schedule("0 * * * *", async () => {
         console.log("[payoutCron] Running payout release check:", new Date().toISOString());
@@ -14,7 +14,7 @@ function startPayoutCron() {
                 items: {
                     $elemMatch: {
                         payoutStatus: "on_hold",
-                        returnStatus: "none",
+                        returnStatus: { $in: ["none", "rejected"] },
                         holdUntil: { $lte: new Date() }
                     }
                 }
@@ -27,7 +27,7 @@ function startPayoutCron() {
                 const eligibleItems = order.items.filter(
                     item =>
                         item.payoutStatus === "on_hold" &&
-                        item.returnStatus === "none" &&
+                        (item.returnStatus === "none" || item.returnStatus === "rejected") &&
                         item.holdUntil &&
                         item.holdUntil <= new Date()
                 );

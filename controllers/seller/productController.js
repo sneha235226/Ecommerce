@@ -2,7 +2,7 @@ const Product = require("../../models/Product");
 const Store = require("../../models/Store");
 const Category = require("../../models/Category");
 const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
-const s3 = require("../../config/s3");
+const { s3Client } = require("../../config/s3");
 const { v4: uuidv4 } = require("uuid");
 
 function generateSlug(title) {
@@ -20,7 +20,7 @@ async function deleteS3Files(files) {
     for (const f of files) {
         if (!f?.key) continue
         try {
-            await s3.send(
+            await s3Client.send(
                 new DeleteObjectCommand({
                     Bucket: process.env.AWS_BUCKET_NAME,
                     Key: f.key
