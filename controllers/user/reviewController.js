@@ -5,7 +5,7 @@ const Seller = require("../../models/Seller");
 const Store = require("../../models/Store");
 
 const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
-const s3 = require("../../config/s3");
+const { s3Client } = require("../../config/s3");
 
 
 function extractKeysFromUrls(urls = []) {
@@ -21,7 +21,7 @@ async function deleteS3Files(files) {
     try {
         for (const f of files) {
             if (!f.key) continue;
-            await s3.send(
+            await s3Client.send(
                 new DeleteObjectCommand({
                     Bucket: process.env.AWS_BUCKET_NAME,
                     Key: f.key
@@ -236,6 +236,9 @@ async function createReview(req, res) {
     }
     catch (error) {
         await deleteS3Files(extractKeysFromUrls(images))
+        if (error.code === 11000) {
+            return res.status(409).json({ message: "You have already reviewed this " + (req.body?.reviewType || "item") })
+        }
         res.status(500).json({
             message: "Create failed",
             error: error.message

@@ -108,7 +108,13 @@ async function updateSubcategory(req, res) {
         const { name, category } = req.body;
         if (name) {
             subcategory.name = name;
-            subcategory.slug = generateSlug(name);
+            let slugBase = generateSlug(name);
+            let slug = slugBase;
+            let counter = 1;
+            while (await Subcategory.findOne({ slug, _id: { $ne: subcategory._id } })) {
+                slug = `${slugBase}-${counter++}`;
+            }
+            subcategory.slug = slug;
         }
 
         if (category) {
@@ -134,6 +140,9 @@ async function updateSubcategory(req, res) {
     }
 
     catch (error) {
+        if (error.code === 11000) {
+            return res.status(409).json({ message: "A subcategory with this name already exists" });
+        }
         res.status(500).json({
             message: "Patch failed",
             error: error.message

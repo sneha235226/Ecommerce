@@ -227,7 +227,10 @@ async function sendAadhaarOtp(req, res) {
     if (!isValidAadhaar(aadharCardNumber)) {
       return res.status(400).json({ ok: false, message: "aadharCardNumber must be 12 digits" });
     }
-
+    const existingAadhaar = await Aadhaar.findOne({ aadharCardNumber });
+    if (existingAadhaar?.isAadharVerifed) {
+      return res.status(400).json({ ok: false, message: "This Aadhaar number is already verified" });
+    }
     const result = await generateAadhaarOtp({ aadhaarNumber: aadharCardNumber, reason, consent });
     return res.status(result.status || 200).json(result.data);
   } catch (err) {
