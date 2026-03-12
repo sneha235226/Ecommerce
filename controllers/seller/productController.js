@@ -4,6 +4,7 @@ const Category = require("../../models/Category");
 const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const { s3Client } = require("../../config/s3");
 const { v4: uuidv4 } = require("uuid");
+const { generateProductDescription } = require("../../services/claudeService");
 
 function generateSlug(title) {
     return title.toLowerCase().trim()
@@ -194,6 +195,26 @@ async function createProduct(req, res) {
             images: groupedImages[v.sku] || []
         }))
 
+        // Auto-generate description/shortDescription via AI if seller left them blank
+        let finalDescription = description || "";
+        let finalShortDescription = shortDescription || "";
+
+        if (!finalDescription || finalDescription.length < 20) {
+            const parsedSpecs = specifications ? JSON.parse(specifications) : [];
+            const ai = await generateProductDescription({
+                title: title.trim(),
+                brand: brand || "",
+                category: categoryExists.name || category,
+                subcategory: subcategory || "",
+                attributes: safeVariants.flatMap(v => v.attributes || []),
+                specifications: parsedSpecs
+            });
+            if (ai) {
+                if (!finalDescription || finalDescription.length < 20) finalDescription = ai.description;
+                if (!finalShortDescription) finalShortDescription = ai.shortDescription;
+            }
+        }
+
         const product = await Product.create({
             store: store._id,
             seller: seller._id,
@@ -201,8 +222,8 @@ async function createProduct(req, res) {
             subcategory: subcategory || null,
             title: title.trim(),
             slug,
-            description: description || "",
-            shortDescription: shortDescription || "",
+            description: finalDescription,
+            shortDescription: finalShortDescription,
             brand: brand || "",
             tags: tags ? JSON.parse(tags) : [],
             searchKeywords: searchKeywords ? JSON.parse(searchKeywords) : [],
