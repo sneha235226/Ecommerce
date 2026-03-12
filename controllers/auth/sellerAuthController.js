@@ -23,6 +23,12 @@ function buildUserResponse(user) {
         phone: user.phone,
         phoneVerified: user.isPhoneVerified,
         emailVerified: user.isEmailVerified,
+        aadhaarVerified: user.aadhaarVerified || false,
+        panVerified: user.panVerified || false,
+        bankVerified: user.bankDetails?.verified || false,
+        gstVerified: user.gst?.verified || false,
+        msmeVerified: user.msme?.verified || false,
+        onboardingCompleted: user.onboardingCompleted || false,
         role
     };
     if (user.firstName !== undefined) response.firstName = user.firstName;
