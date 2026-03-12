@@ -111,7 +111,7 @@ async function verifyAadhaarOtp({ reference_id, otp }) {
     },
     {
       "@entity": "in.co.sandbox.kyc.aadhaar.okyc.request",
-      reference_id,
+      reference_id: String(reference_id),
       otp
     }
   );
