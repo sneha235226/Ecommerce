@@ -15,9 +15,11 @@ function razorpayAuth() {
     };
 }
 
-// Create or reuse a Razorpay Contact for the seller.
-// In production you'd store contactId on Seller doc; here we always create fresh.
+// Get or create a Razorpay Contact for the seller, persisting the ID on the Seller doc.
 async function getOrCreateContact(seller) {
+    if (seller.bankDetails?.razorpayContactId) {
+        return seller.bankDetails.razorpayContactId;
+    }
     const { data } = await axios.post(
         `${PAYOUTS_BASE}/contacts`,
         {
@@ -29,11 +31,18 @@ async function getOrCreateContact(seller) {
         },
         { auth: razorpayAuth() }
     );
+    await Seller.updateOne(
+        { _id: seller._id },
+        { "bankDetails.razorpayContactId": data.id }
+    );
     return data.id;
 }
 
-// Create a Fund Account (bank account) linked to the contact.
-async function createFundAccount(contactId, seller) {
+// Get or create a Fund Account linked to the contact, persisting the ID on the Seller doc.
+async function getOrCreateFundAccount(contactId, seller) {
+    if (seller.bankDetails?.razorpayFundAccountId) {
+        return seller.bankDetails.razorpayFundAccountId;
+    }
     const bank = seller.bankDetails;
     const { data } = await axios.post(
         `${PAYOUTS_BASE}/fund_accounts`,
@@ -47,6 +56,10 @@ async function createFundAccount(contactId, seller) {
             }
         },
         { auth: razorpayAuth() }
+    );
+    await Seller.updateOne(
+        { _id: seller._id },
+        { "bankDetails.razorpayFundAccountId": data.id }
     );
     return data.id;
 }
@@ -83,11 +96,11 @@ async function releasePayout(orderId, itemId) {
     const amountPaise = Math.round(item.sellerPayoutAmount * 100);
     if (amountPaise <= 0) throw new Error("Payout amount is zero or negative");
 
-    // Step 1: Create contact
+    // Step 1: Get or create contact (reuses saved ID)
     const contactId = await getOrCreateContact(seller);
 
-    // Step 2: Create fund account
-    const fundAccountId = await createFundAccount(contactId, seller);
+    // Step 2: Get or create fund account (reuses saved ID)
+    const fundAccountId = await getOrCreateFundAccount(contactId, seller);
 
     // Step 3: Initiate payout
     const { data: payout } = await axios.post(

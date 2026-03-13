@@ -28,7 +28,8 @@ function deriveOrderStatus(items) {
     if (statuses.every(s => s === "cancelled" || s === "rejected")) return "cancelled";
     if (active.length && active.every(i => i.status === "shipped")) return "shipped";
     if (statuses.some(s => s === "shipped" || s === "delivered")) return "partially_shipped";
-    if (active.length && active.every(i => i.status === "accepted")) return "accepted";
+    // confirmed / packed are intermediate states between accepted and shipped
+    if (active.length && active.every(i => ["accepted", "confirmed", "packed"].includes(i.status))) return "accepted";
     return "placed";
 }
 

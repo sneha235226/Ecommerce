@@ -127,6 +127,7 @@ async function updateOrderItemStatus(req, res) {
                 { _id: item.product, "variants._id": item.variantId },
                 { $inc: { "variants.$.stock": item.quantity, totalStock: item.quantity } }
             );
+            item.payoutStatus = "cancelled";
         }
 
         // When item is delivered: start the return window, set payout on_hold

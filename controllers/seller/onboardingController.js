@@ -26,7 +26,6 @@ function maskAadhaar(num) {
     return s.length > 4 ? "XXXX-XXXX-" + s.slice(-4) : s;
 }
 
-// ─── GET /sellers/onboarding/status ─────────────────────────────────────────
 async function getOnboardingStatus(req, res) {
     try {
         const s = req.seller;
@@ -67,7 +66,6 @@ async function getOnboardingStatus(req, res) {
     }
 }
 
-// ─── POST /sellers/onboarding/verify-bank ────────────────────────────────────
 // Body: { accountNumber, ifsc }
 async function verifyBank(req, res) {
     try {
@@ -204,7 +202,6 @@ async function verifyGST(req, res) {
             businessActivities: Array.isArray(inner.nba) ? inner.nba : [],
             verified:           true,
             verifiedAt:         new Date(),
-            // raw stored but excluded from normal reads (select: false)
             raw:                result.data
         };
 
@@ -269,8 +266,6 @@ async function verifyMSME(req, res) {
             return res.status(400).json({ message: "MSME verification failed", details: result?.data });
         }
 
-        // IDSPay Pan To Udyam Srv2 response shape:
-        // result.data = { status: {...}, data: { enterprise_data: {...}, industry: [...] } }
         const enterprise = result.data?.data?.enterprise_data
             || result.data?.data
             || result.data

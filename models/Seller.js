@@ -113,9 +113,11 @@ const sellerSchema = new mongoose.Schema(
       bankName:          { type: String, trim: true, default: "" },
       branchName:        { type: String, trim: true, default: "" },
       upiId:             { type: String, trim: true, default: "" },
-      verified:          { type: Boolean, default: false },
-      verifiedAt:        { type: Date, default: null },
-      raw:               { type: mongoose.Schema.Types.Mixed, default: null, select: false }
+      verified:              { type: Boolean, default: false },
+      verifiedAt:            { type: Date, default: null },
+      raw:                   { type: mongoose.Schema.Types.Mixed, default: null, select: false },
+      razorpayContactId:     { type: String, trim: true, default: "" },
+      razorpayFundAccountId: { type: String, trim: true, default: "" }
     },
 
     // ── PAN verification ─────────────────────────────────────────────────────

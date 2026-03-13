@@ -396,7 +396,7 @@ async function buyNow(req, res) {
                 }],
                 shippingAddress, billingAddress, paymentMethod,
                 paymentStatus: "pending",
-                subtotal: totalPrice, taxAmount, grandTotal
+                subtotal: totalPrice, taxAmount, shippingAmount: 0, grandTotal
             });
         } catch (err) {
             await Product.updateOne(
@@ -499,7 +499,7 @@ async function verifyAndPlaceBuyNow(req, res) {
                 shippingAddress, billingAddress, paymentMethod,
                 paymentStatus: "paid",
                 razorpayOrderId, razorpayPaymentId, razorpaySignature,
-                subtotal: totalPrice, taxAmount, grandTotal,
+                subtotal: totalPrice, taxAmount, shippingAmount: 0, grandTotal,
                 paidAt: new Date()
             });
         } catch (err) {
