@@ -40,6 +40,7 @@ async function toggleWishlist(req, res) {
             await wishlist.save();
             return res.json({
                 message: "Removed from wishlist",
+                totalItems: wishlist.items.length,
                 wishlist
             });
         }
@@ -61,6 +62,7 @@ async function toggleWishlist(req, res) {
         await wishlist.save();
         res.json({
             message: "Added to wishlist",
+            totalItems: wishlist.items.length,
             wishlist
         });
     }
@@ -76,16 +78,23 @@ async function getWishlist(req, res) {
     try {
         const wishlist = await Wishlist.findOne({
             user: req.user._id
-        }).populate("items.product", "title images price");
+        }).populate("items.product", "title images basePrice");
+
         if (!wishlist) {
-            return res.json({
-                items: []
-            });
+            return res.json({ items: [], totalItems: 0 });
         }
+
+        const validItems = wishlist.items.filter(i => i.product !== null);
+        if (validItems.length !== wishlist.items.length) {
+            wishlist.items = validItems;
+            await wishlist.save();
+        }
+
         res.status(200).json({
             message: "Wishlist fetched successfully",
+            totalItems: wishlist.items.length,
             wishlist
-        })
+        });
     }
     catch (error) {
         res.status(500).json({
@@ -114,6 +123,7 @@ async function removeWishlistItem(req, res) {
         await wishlist.save();
         res.json({
             message: "Item removed successfully",
+            totalItems: wishlist.items.length,
             wishlist
         });
     }
