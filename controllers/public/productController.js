@@ -29,6 +29,7 @@ async function getProducts(req, res) {
 
         const [products, total] = await Promise.all([
             Product.find(filter)
+                .populate("store", "description logoUrl bannerUrl sellerMode")
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(Number(limit))
@@ -54,7 +55,8 @@ async function getProductById(req, res) {
         const { id } = req.params;
         if (!id) return res.status(400).json({ message: "Product ID required" });
 
-        const product = await Product.findOne({ _id: id, isActive: true });
+        const product = await Product.findOne({ _id: id, isActive: true })
+            .populate("store", "description logoUrl bannerUrl sellerMode returnPolicy serviceablePostalCodes");
         if (!product) return res.status(404).json({ message: "Product not found" });
 
         return res.status(200).json({ message: "Product fetched successfully", product });
@@ -80,6 +82,7 @@ async function getProductBySubcategory(req, res) {
 
         const [products, total] = await Promise.all([
             Product.find(filter)
+                .populate("store", "description logoUrl bannerUrl sellerMode")
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(Number(limit))
@@ -117,6 +120,7 @@ async function getProductBySpecificStore(req, res) {
 
         const [products, total] = await Promise.all([
             Product.find(filter)
+                .populate("store", "description logoUrl bannerUrl sellerMode returnPolicy serviceablePostalCodes")
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(Number(limit))
