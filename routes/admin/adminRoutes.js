@@ -9,6 +9,7 @@ const sellerRoutes = require("../admin/sellerRoutes");
 const settingsRoutes = require("../admin/settingsRoutes");
 const orderRoutes = require("../admin/orderRoutes");
 const adminQueryRoutes = require("../admin/adminQueryRoutes");
+const mailRoutes = require("../admin/mailRoutes");
 
 const router = express.Router();
 
@@ -22,5 +23,6 @@ router.use("/sellers", sellerRoutes);
 router.use("/settings", settingsRoutes);
 router.use("/orders", orderRoutes);
 router.use("/queries", adminQueryRoutes);
+router.use("/mail", mailRoutes);
 
 module.exports = router;

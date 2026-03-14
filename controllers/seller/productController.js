@@ -2,7 +2,7 @@ const Product = require("../../models/Product");
 const Store = require("../../models/Store");
 const Category = require("../../models/Category");
 const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
-const { s3Client } = require("../../config/s3");
+const { s3Client, resolveProductImages } = require("../../config/s3");
 const { v4: uuidv4 } = require("uuid");
 const { generateProductDescription } = require("../../services/claudeService");
 
@@ -471,12 +471,15 @@ async function getAllMyProducts(req, res) {
             Product.find({ seller: seller._id })
                 .sort({ createdAt: -1 })
                 .skip(skip)
-                .limit(limit),
+                .limit(limit)
+                .lean(),
 
             Product.countDocuments({
                 seller: seller._id
             })
         ]);
+
+        await Promise.all(products.map(resolveProductImages));
 
         return res.status(200).json({
             message: "Products fetched successfully",
@@ -505,12 +508,13 @@ async function getProductById(req, res) {
                 message: "Product ID required"
             })
         }
-        const product = await Product.findById(id);
+        const product = await Product.findById(id).lean();
         if (!product) {
             return res.status(404).json({
                 message: "Product not found"
             })
         }
+        await resolveProductImages(product);
         return res.status(200).json({
             message: "Product fetched successfully",
             product

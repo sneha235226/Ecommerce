@@ -1,5 +1,6 @@
 const Product = require("../../models/Product");
 const AdminSettings = require("../../models/AdminSettings");
+const { resolveProductImages } = require("../../config/s3");
 
 // Translates the frontend toggle to a targetAudience filter.
 // The toggle controls product VISIBILITY — who the product is intended for.
@@ -33,9 +34,12 @@ async function getProducts(req, res) {
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(Number(limit))
-                .select("-bulkPricing -specifications -searchKeywords"),
+                .select("-bulkPricing -specifications -searchKeywords")
+                .lean(),
             Product.countDocuments(filter)
         ]);
+
+        await Promise.all(products.map(resolveProductImages));
 
         return res.status(200).json({
             message: "Products fetched successfully",
@@ -56,8 +60,11 @@ async function getProductById(req, res) {
         if (!id) return res.status(400).json({ message: "Product ID required" });
 
         const product = await Product.findOne({ _id: id, isActive: true })
-            .populate("store", "description logoUrl bannerUrl sellerMode returnPolicy serviceablePostalCodes");
+            .populate("store", "description logoUrl bannerUrl sellerMode returnPolicy serviceablePostalCodes")
+            .lean();
         if (!product) return res.status(404).json({ message: "Product not found" });
+
+        await resolveProductImages(product);
 
         return res.status(200).json({ message: "Product fetched successfully", product });
     } catch (error) {
@@ -86,9 +93,12 @@ async function getProductBySubcategory(req, res) {
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(Number(limit))
-                .select("-bulkPricing -specifications -searchKeywords"),
+                .select("-bulkPricing -specifications -searchKeywords")
+                .lean(),
             Product.countDocuments(filter)
         ]);
+
+        await Promise.all(products.map(resolveProductImages));
 
         return res.status(200).json({
             message: "Products fetched successfully",
@@ -124,9 +134,12 @@ async function getProductBySpecificStore(req, res) {
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(Number(limit))
-                .select("-bulkPricing -specifications -searchKeywords"),
+                .select("-bulkPricing -specifications -searchKeywords")
+                .lean(),
             Product.countDocuments(filter)
         ]);
+
+        await Promise.all(products.map(resolveProductImages));
 
         return res.status(200).json({
             message: "Products fetched successfully",

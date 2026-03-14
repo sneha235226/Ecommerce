@@ -1,6 +1,7 @@
 const Store = require("../../models/Store");
 const Product = require("../../models/Product");
 const AdminSettings = require("../../models/AdminSettings");
+const { resolveStoreImages, resolveProductImages } = require("../../config/s3");
 
 // Used in $geoNear query on the Store collection.
 // store.sellerMode is denormalized from seller.mode — tells us what type of store it is.
@@ -114,6 +115,8 @@ async function getNearbyStores(req, res) {
 
         const total = totalResult[0]?.total || 0;
 
+        await Promise.all(stores.map(resolveStoreImages));
+
         return res.status(200).json({
             message: "Nearby stores fetched successfully",
             radiusKm: settings.nearbyStoreRadiusKm,
@@ -205,6 +208,8 @@ async function getNearbyStoreProducts(req, res) {
                 .select("-bulkPricing -specifications -searchKeywords"),
             Product.countDocuments(productFilter)
         ]);
+
+        await Promise.all(products.map(resolveProductImages));
 
         return res.status(200).json({
             message: "Products from nearby stores fetched successfully",

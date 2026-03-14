@@ -1,4 +1,5 @@
 const ContactQuery = require("../../models/ContactQuery")
+const { sendSellerReplyEmail } = require("../../services/emailService")
 
 async function getSellerQueries(req, res) {
     try {
@@ -81,12 +82,27 @@ async function replyToQuery(req, res) {
         }
 
         const query = await ContactQuery.findOne({ _id: queryId, seller: req.seller._id })
+            .populate("product", "title")
+            .populate("user", "firstName lastName")
         if (!query) return res.status(404).json({ message: "Query not found" })
 
         query.sellerReply = sellerReply
         query.repliedAt = new Date()
         query.status = "answered"
         await query.save()
+
+        // Send email notification (non-blocking)
+        const toName = query.user
+            ? `${query.user.firstName} ${query.user.lastName || ""}`.trim()
+            : query.email;
+        sendSellerReplyEmail({
+            toEmail: query.email,
+            toName,
+            subject: query.subject,
+            originalMessage: query.message,
+            sellerReply,
+            productTitle: query.product?.title || ""
+        }).catch(err => console.error("[email] Seller reply email failed:", err.message));
 
         return res.status(200).json({ message: "Reply sent successfully", query })
     } catch (error) {

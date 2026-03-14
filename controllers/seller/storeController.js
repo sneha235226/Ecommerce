@@ -1,5 +1,5 @@
 const Store = require("../../models/Store");
-const { s3Client } = require("../../config/s3");
+const { s3Client, resolveStoreImages } = require("../../config/s3");
 const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
 
 async function deleteUploadedFiles(filesObj) {
@@ -62,7 +62,9 @@ async function createStore(req, res) {
             ...(location && { location })
         });
 
-        return res.status(201).json({ message: "Store created successfully", store });
+        const storeObj = store.toObject();
+        await resolveStoreImages(storeObj);
+        return res.status(201).json({ message: "Store created successfully", store: storeObj });
     } catch (error) {
         await deleteUploadedFiles(req.files);
         return res.status(500).json({ message: "Store creation failed", error: error.message });
@@ -78,9 +80,11 @@ async function getStore(req, res) {
             });
         }
 
+        const storeObj = store.toObject();
+        await resolveStoreImages(storeObj);
         return res.status(200).json({
             message: "Store fetched successfully",
-            store
+            store: storeObj
         });
     }
     catch (error) {
@@ -134,9 +138,11 @@ async function updateStore(req, res) {
         }
 
         await store.save();
+        const storeObj = store.toObject();
+        await resolveStoreImages(storeObj);
         return res.status(200).json({
             message: "Store updated successfully",
-            store
+            store: storeObj
         });
     }
 

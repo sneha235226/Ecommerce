@@ -1,4 +1,5 @@
 const AdminQuery = require("../../models/AdminQuery");
+const { sendAdminReplyEmail } = require("../../services/emailService");
 
 async function getAllQueries(req, res) {
     try {
@@ -43,6 +44,15 @@ async function replyToQuery(req, res) {
         query.repliedAt = new Date();
         query.status = status || "answered";
         await query.save();
+
+        // Send email notification (non-blocking — don't fail the request if email fails)
+        sendAdminReplyEmail({
+            toEmail: query.email,
+            toName: query.name,
+            subject: query.subject,
+            originalMessage: query.message,
+            adminReply
+        }).catch(err => console.error("[email] Admin reply email failed:", err.message));
 
         return res.status(200).json({ message: "Reply sent successfully", query });
     } catch (error) {

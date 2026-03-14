@@ -69,9 +69,72 @@ const deleteObject = async (key) => {
     }
 };
 
+// Extract the S3 key from a full URL like https://bucket.s3.region.amazonaws.com/key
+function extractS3Key(url) {
+    if (!url) return null;
+    const match = url.match(/\.amazonaws\.com\/(.+)/);
+    return match ? decodeURIComponent(match[1]) : null;
+}
+
+// Convert a stored S3 URL to a presigned GET URL. Returns original if not an S3 URL.
+async function resolveUrl(url) {
+    if (!url) return url;
+    const key = extractS3Key(url);
+    if (!key) return url;
+    return getobject(key);
+}
+
+// Resolve all image fields in a product plain object (use after .lean() or .toObject())
+async function resolveProductImages(product) {
+    if (!product) return product;
+
+    const tasks = [];
+
+    if (product.images?.length) {
+        tasks.push(
+            Promise.all(product.images.map(resolveUrl)).then(urls => { product.images = urls; })
+        );
+    }
+
+    if (product.variants?.length) {
+        for (const variant of product.variants) {
+            if (variant.images?.length) {
+                tasks.push(
+                    Promise.all(variant.images.map(resolveUrl)).then(urls => { variant.images = urls; })
+                );
+            }
+        }
+    }
+
+    if (product.store) {
+        if (product.store.logoUrl) {
+            tasks.push(resolveUrl(product.store.logoUrl).then(url => { product.store.logoUrl = url; }));
+        }
+        if (product.store.bannerUrl) {
+            tasks.push(resolveUrl(product.store.bannerUrl).then(url => { product.store.bannerUrl = url; }));
+        }
+    }
+
+    await Promise.all(tasks);
+    return product;
+}
+
+// Resolve logo and banner URLs in a store plain object
+async function resolveStoreImages(store) {
+    if (!store) return store;
+    await Promise.all([
+        store.logoUrl  ? resolveUrl(store.logoUrl).then(url  => { store.logoUrl  = url; }) : Promise.resolve(),
+        store.bannerUrl ? resolveUrl(store.bannerUrl).then(url => { store.bannerUrl = url; }) : Promise.resolve()
+    ]);
+    return store;
+}
+
 module.exports = {
     s3Client,
     putobject,
     getobject,
     deleteObject,
+    resolveUrl,
+    resolveProductImages,
+    resolveStoreImages,
 };
