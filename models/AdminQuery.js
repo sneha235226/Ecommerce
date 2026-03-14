@@ -2,10 +2,22 @@ const mongoose = require("mongoose");
 
 const adminQuerySchema = new mongoose.Schema(
     {
+        senderType: {
+            type: String,
+            enum: ["user", "seller"],
+            required: true,
+            index: true
+        },
         user: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
-            required: true,
+            default: null,
+            index: true
+        },
+        seller: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Seller",
+            default: null,
             index: true
         },
         name: { type: String, trim: true, required: true },

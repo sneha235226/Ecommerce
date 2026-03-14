@@ -21,6 +21,6 @@ router.use("/users", userRoutes);
 router.use("/sellers", sellerRoutes);
 router.use("/settings", settingsRoutes);
 router.use("/orders", orderRoutes);
-router.use("/user-queries", adminQueryRoutes);
+router.use("/queries", adminQueryRoutes);
 
 module.exports = router;

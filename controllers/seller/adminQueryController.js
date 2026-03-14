@@ -3,18 +3,18 @@ const AdminQuery = require("../../models/AdminQuery");
 async function sendQuery(req, res) {
     try {
         const { subject, message, phone } = req.body;
-        const user = req.user;
+        const seller = req.seller;
 
         if (!subject || !message) {
             return res.status(400).json({ message: "subject and message are required" });
         }
 
         const query = await AdminQuery.create({
-            senderType: "user",
-            user: user._id,
-            name: `${user.firstName} ${user.lastName || ""}`.trim(),
-            email: user.email,
-            phone: phone || user.phone || "",
+            senderType: "seller",
+            seller: seller._id,
+            name: `${seller.firstName} ${seller.lastName || ""}`.trim(),
+            email: seller.email,
+            phone: phone || seller.phone || "",
             subject,
             message
         });
@@ -32,11 +32,11 @@ async function getMyQueries(req, res) {
         const skip = (page - 1) * limit;
 
         const [queries, total] = await Promise.all([
-            AdminQuery.find({ user: req.user._id })
+            AdminQuery.find({ seller: req.seller._id, senderType: "seller" })
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limit),
-            AdminQuery.countDocuments({ user: req.user._id })
+            AdminQuery.countDocuments({ seller: req.seller._id, senderType: "seller" })
         ]);
 
         return res.status(200).json({ page, limit, total, totalPages: Math.ceil(total / limit), queries });

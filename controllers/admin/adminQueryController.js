@@ -9,10 +9,12 @@ async function getAllQueries(req, res) {
 
         const filter = {};
         if (status) filter.status = status;
+        if (req.query.senderType) filter.senderType = req.query.senderType;
 
         const [queries, total] = await Promise.all([
             AdminQuery.find(filter)
                 .populate("user", "firstName lastName email phone")
+                .populate("seller", "firstName lastName email phone")
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limit),
