@@ -6,6 +6,7 @@ const paymentRoutes = require("./paymentRoutes");
 const wishlistRoutes = require("./wishlistRoutes"); 
 const reviewRoutes = require("./reviewRoutes");
 const contactRoutes = require("./contactQueryRoutes");
+const adminQueryRoutes = require("./adminQueryRoutes");
 const {
     getMyProfile,
     updateProfile,
@@ -37,5 +38,6 @@ router.use("/payments", paymentRoutes);
 router.use("/wishlist", wishlistRoutes);
 router.use("/review", reviewRoutes);
 router.use("/contact-query", contactRoutes);
+router.use("/admin-query", adminQueryRoutes);
 
 module.exports = router;

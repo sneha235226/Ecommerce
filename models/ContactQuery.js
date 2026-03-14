@@ -50,7 +50,9 @@ const contactQuerySchema = new mongoose.Schema(
             type: String,
             enum: ["pending", "answered", "closed"],
             default: "pending"
-        }
+        },
+        sellerReply: { type: String, trim: true, default: "" },
+        repliedAt: { type: Date, default: null }
     },
     { timestamps: true }
 )

@@ -71,7 +71,31 @@ async function updateQueryStatus(req, res) {
     }
 }
 
+async function replyToQuery(req, res) {
+    try {
+        const { queryId } = req.params
+        const { sellerReply } = req.body
+
+        if (!sellerReply) {
+            return res.status(400).json({ message: "sellerReply is required" })
+        }
+
+        const query = await ContactQuery.findOne({ _id: queryId, seller: req.seller._id })
+        if (!query) return res.status(404).json({ message: "Query not found" })
+
+        query.sellerReply = sellerReply
+        query.repliedAt = new Date()
+        query.status = "answered"
+        await query.save()
+
+        return res.status(200).json({ message: "Reply sent successfully", query })
+    } catch (error) {
+        return res.status(500).json({ message: "Reply failed", error: error.message })
+    }
+}
+
 module.exports = {
     getSellerQueries,
-    updateQueryStatus
+    updateQueryStatus,
+    replyToQuery
 }

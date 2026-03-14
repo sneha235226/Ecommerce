@@ -44,7 +44,6 @@ async function getMyQueries(req, res) {
         const queries = await ContactQuery.find({
             user: req.user._id
         }).populate("product", "title images")
-            .populate("store", "name")
             .sort({ createdAt: -1 })
         return res.status(200).json({
             message: "Queries fetched successfully",
@@ -59,8 +58,22 @@ async function getMyQueries(req, res) {
     }
 }
 
+async function getQueryById(req, res) {
+    try {
+        const query = await ContactQuery.findOne({
+            _id: req.params.queryId,
+            user: req.user._id
+        }).populate("product", "title images")
+        if (!query) return res.status(404).json({ message: "Query not found" })
+        return res.status(200).json({ query })
+    } catch (error) {
+        return res.status(500).json({ message: "Fetch failed", error: error.message })
+    }
+}
+
 
 module.exports = {
     createQuery,
-    getMyQueries
+    getMyQueries,
+    getQueryById
 };
