@@ -51,7 +51,7 @@ const productSchema = new mongoose.Schema(
     category: { type: mongoose.Schema.Types.ObjectId, ref: "Category", required: true, index: true },
     subcategory: { type: mongoose.Schema.Types.ObjectId, ref: "Subcategory", default: null, index: true },
     title: { type: String, trim: true, required: true },
-    slug: { type: String, trim: true, lowercase: true, unique: true, required: true },
+    slug: { type: String, trim: true, lowercase: true, required: true },
     description: { type: String, trim: true, default: "" },
     shortDescription: { type: String, trim: true, default: "" },
     brand: { type: String, trim: true, default: "" },

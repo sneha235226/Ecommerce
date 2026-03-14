@@ -66,10 +66,6 @@ async function getProductById(req, res) {
 async function getProductBySubcategory(req, res) {
     try {
         const { subcategory } = req.params;
-        const subcategoryExists = await Product.exists({ subcategory });
-        if (!subcategoryExists) {
-            return res.status(404).json({ message: "Subcategory not found or has no products" });
-        }
         const { mode, page = 1, limit = 20 } = req.query;
 
         if (mode === "wholesale") {
