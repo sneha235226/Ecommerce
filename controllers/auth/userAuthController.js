@@ -24,6 +24,7 @@ function buildUserResponse(user) {
     phone: user.phone,
     phoneVerified: user.isPhoneVerified,
     emailVerified: user.isEmailVerified,
+    isBlocked: user.isBlocked || false,
     role
   };
   if (user.firstName !== undefined) response.firstName = user.firstName;
@@ -97,6 +98,9 @@ async function login(req, res) {
     }
 
     if (!user.isActive) {
+      if (user.isBlocked) {
+        return res.status(403).json({ message: "Your account has been blocked due to suspicious reports. Please contact support.", isBlocked: true });
+      }
       return res.status(401).json({ message: "Account is inactive. Please contact admin for more information or create new account" });
     }
 
@@ -349,7 +353,13 @@ async function loginWithEmailOtp(req, res) {
       return res.status(400).json({ message: "Email is required" });
     }
     const user = await User.findOne({ email }).select("+emailVerificationOtp +emailVerificationExpires");
-    if (!user || user.isActive === false) {
+    if (!user) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+    if (user.isActive === false) {
+      if (user.isBlocked) {
+        return res.status(403).json({ message: "Your account has been blocked due to suspicious reports. Please contact support.", isBlocked: true });
+      }
       return res.status(401).json({ message: "Invalid credentials" });
     }
     const needsPhoneVerify = user.isPhoneVerified === false && !!user.phone
@@ -412,7 +422,13 @@ async function loginWithPhoneOtp(req, res) {
       return res.status(400).json({ message: "Phone is required" });
     }
     const user = await User.findOne({ phone }).select("+phoneVerificationOtp +phoneVerificationExpires");
-    if (!user || user.isActive === false) {
+    if (!user) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+    if (user.isActive === false) {
+      if (user.isBlocked) {
+        return res.status(403).json({ message: "Your account has been blocked due to suspicious reports. Please contact support.", isBlocked: true });
+      }
       return res.status(401).json({ message: "Invalid credentials" });
     }
     const needsPhoneVerify = user.isPhoneVerified === false && !!user.phone

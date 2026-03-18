@@ -29,6 +29,7 @@ function buildUserResponse(user) {
         gstVerified: user.gst?.verified || false,
         msmeVerified: user.msme?.verified || false,
         onboardingCompleted: user.onboardingCompleted || false,
+        status: user.status,
         role
     };
     if (user.firstName !== undefined) response.firstName = user.firstName;
@@ -100,6 +101,9 @@ async function login(req, res) {
         }
 
         if (!user.isActive) {
+            if (user.status === "suspended") {
+                return res.status(403).json({ message: "Your store has been suspended. Please contact support to reactivate it.", status: "suspended" });
+            }
             return res.status(401).json({ message: "Account is inactive. Please contact admin for more information or create new account" });
         }
 
@@ -349,7 +353,13 @@ async function loginWithEmailOtp(req, res) {
             return res.status(400).json({ message: "Email is required" });
         }
         const seller = await Seller.findOne({ email }).select("+emailVerificationOtp +emailVerificationExpires");
-        if (!seller || seller.isActive === false) {
+        if (!seller) {
+            return res.status(401).json({ message: "Invalid credentials" });
+        }
+        if (seller.isActive === false) {
+            if (seller.status === "suspended") {
+                return res.status(403).json({ message: "Your store has been suspended. Please contact support to reactivate it.", status: "suspended" });
+            }
             return res.status(401).json({ message: "Invalid credentials" });
         }
         if (!otp) {
@@ -398,7 +408,13 @@ async function loginWithPhoneOtp(req, res) {
             return res.status(400).json({ message: "Phone is required" });
         }
         const seller = await Seller.findOne({ phone }).select("+phoneVerificationOtp +phoneVerificationExpires");
-        if (!seller || seller.isActive === false) {
+        if (!seller) {
+            return res.status(401).json({ message: "Invalid credentials" });
+        }
+        if (seller.isActive === false) {
+            if (seller.status === "suspended") {
+                return res.status(403).json({ message: "Your store has been suspended. Please contact support to reactivate it.", status: "suspended" });
+            }
             return res.status(401).json({ message: "Invalid credentials" });
         }
         if (!otp) {

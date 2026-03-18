@@ -37,6 +37,16 @@ async function verifyTokenAndAttachUser(req, res) {
       }
     };
   }
+
+  if (user.isBlocked) {
+    return {
+      error: {
+        status: 401,
+        message: "Account has been blocked"
+      }
+    };
+  }
+
   return { decoded, user };
 }
 

@@ -30,6 +30,9 @@ const {
 const router = express.Router();
 
 router.get("/me", requireAnySellerAuth, getMySellerProfile);
+router.get("/me/status", requireAnySellerAuth, (req, res) => {
+  res.status(200).json({ status: req.seller.status, isActive: req.seller.isActive });
+});
 router.delete("/delete", requireAnySellerAuth, deleteSeller);
 
 // ─── Onboarding routes ────────────────────────────────────────────

@@ -150,6 +150,7 @@ async function suspendSeller(req, res) {
     }
 
     seller.status = "suspended";
+    seller.isActive = false;
     seller.approval.rejectionReason = reason ? String(reason).trim() : "";
 
     await Promise.all([
@@ -181,6 +182,7 @@ async function reinstateSeller(req, res) {
     }
 
     seller.status = "approved";
+    seller.isActive = true;
     seller.approval.rejectionReason = "";
     seller.approval.approvedBy = req.user._id;
     seller.approval.approvedAt = new Date();
