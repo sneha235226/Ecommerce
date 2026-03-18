@@ -10,7 +10,8 @@ const { resolveStoreImages, resolveProductImages } = require("../../config/s3");
 //   hybrid    → carries both
 function getStoreModeFilter(mode) {
     if (mode === "wholesale") return ["wholesale", "hybrid"];
-    return ["retail", "hybrid"]; // default = retail
+    if (mode === "retail") return ["retail", "hybrid"];
+    return ["retail", "wholesale", "hybrid"]; // "all" or no mode = everything
 }
 
 // Used when querying the Product collection.
@@ -18,7 +19,8 @@ function getStoreModeFilter(mode) {
 //   "both" products appear in BOTH retail and wholesale modes.
 function getProductAudienceFilter(mode) {
     if (mode === "wholesale") return ["B2B", "both"];
-    return ["B2C", "both"]; // default = retail
+    if (mode === "retail") return ["B2C", "both"];
+    return ["B2C", "B2B", "both"]; // "all" or no mode = everything
 }
 
 // GET /api/public/stores/nearby
