@@ -55,6 +55,7 @@ async function broadcastToUsers(req, res) {
         if (!title || !message) {
             return res.status(400).json({ message: "title and message are required" });
         }
+
         const users = await User.find({ isBlocked: { $ne: true } }).select("_id");
         if (users.length === 0) return res.json({ message: "No active users found", count: 0 });
 
@@ -79,6 +80,7 @@ async function broadcastToSellers(req, res) {
         if (!title || !message) {
             return res.status(400).json({ message: "title and message are required" });
         }
+
         const sellers = await Seller.find({ status: "approved" }).select("_id");
         if (sellers.length === 0) return res.json({ message: "No approved sellers found", count: 0 });
 
