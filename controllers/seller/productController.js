@@ -243,6 +243,9 @@ async function createProduct(req, res) {
             bulkPricing: bulkPricing
                 ? JSON.parse(bulkPricing)
                 : [],
+            bulkPricingEnabled: bulkPricing
+                ? JSON.parse(bulkPricing).length > 0
+                : false,
             specifications: specifications
                 ? JSON.parse(specifications)
                 : [],
@@ -394,9 +397,10 @@ async function updateProduct(req, res) {
 
         product.variants = safeVariants
 
-        if (req.body.bulkPricing) {
-            product.bulkPricing =
-                JSON.parse(req.body.bulkPricing)
+        if (req.body.bulkPricing !== undefined) {
+            const parsed = JSON.parse(req.body.bulkPricing)
+            product.bulkPricing = parsed
+            product.bulkPricingEnabled = parsed.length > 0
         }
 
         if (req.body.specifications) {

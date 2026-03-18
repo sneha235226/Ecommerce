@@ -7,6 +7,7 @@ const contactQueryRoutes = require("./contactQueryRoutes");
 const flagRoutes = require("./flagRoutes");
 const dashboardRoutes = require("./dashboardRoutes");
 const adminQueryRoutes = require("./adminQueryRoutes");
+const notificationRoutes = require("./notificationRoutes");
 
 const {
   getMySellerProfile,
@@ -53,5 +54,6 @@ router.use("/orders", requireSellerAuth, orderRoutes);
 router.use("/flags", requireSellerAuth, flagRoutes);
 router.use("/contact-queries", requireSellerAuth, contactQueryRoutes);
 router.use("/admin-query", requireSellerAuth, adminQueryRoutes);
+router.use("/notifications", requireSellerAuth, notificationRoutes);
 
 module.exports = router;

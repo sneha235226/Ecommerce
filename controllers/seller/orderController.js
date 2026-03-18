@@ -2,6 +2,7 @@ const Order = require("../../models/Order");
 const Product = require("../../models/Product");
 const AdminSettings = require("../../models/AdminSettings");
 const { deriveOrderStatus } = require("../../utils/orderUtils");
+const { resolveUrl } = require("../../config/s3");
 
 async function getSellerOrders(req, res) {
     try {
@@ -62,7 +63,7 @@ async function getSellerOrderById(req, res) {
             _id: req.params.id,
             "items.seller": sellerId
         })
-            .populate("user", "firstName phone")
+            .populate("user", "firstName phone email")
             .populate("items.product", "title");
 
         if (!order) {
@@ -71,15 +72,22 @@ async function getSellerOrderById(req, res) {
             });
         }
 
-        const sellerItems = order.items.filter(
-            item => String(item.seller) === String(sellerId)
-        );
+        const sellerItems = order.items
+            .filter(item => String(item.seller) === String(sellerId))
+            .map(item => item.toObject());
+
+        await Promise.all(sellerItems.map(async (item) => {
+            if (item.imageSnapshot) {
+                item.imageSnapshot = await resolveUrl(item.imageSnapshot);
+            }
+        }));
 
         res.status(200).json({
             orderNumber: order.orderNumber,
             paymentMethod: order.paymentMethod,
             paymentStatus: order.paymentStatus,
             shippingAddress: order.shippingAddress,
+            customerEmail: order.user?.email ?? "",
             items: sellerItems,
             createdAt: order.createdAt
         });

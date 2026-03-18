@@ -74,7 +74,7 @@ async function getNearbyStores(req, res) {
                     foreignField: "_id",
                     as: "sellerInfo",
                     pipeline: [
-                        { $project: { businessName: 1, ratingAverage: 1, ratingCount: 1 } }
+                        { $project: { businessName: 1, ratingAverage: 1, ratingCount: 1, businessAddress: 1 } }
                     ]
                 }
             },
@@ -89,7 +89,8 @@ async function getNearbyStores(req, res) {
                     bannerUrl: 1,
                     description: 1,
                     distanceMeters: 1,
-                    distanceKm: { $round: [{ $divide: ["$distanceMeters", 1000] }, 2] }
+                    distanceKm: { $round: [{ $divide: ["$distanceMeters", 1000] }, 2] },
+                    location: 1
                 }
             },
             { $skip: skip },

@@ -2,6 +2,7 @@ const Cart = require("../../models/Cart");
 const Product = require("../../models/Product");
 const AdminSettings = require("../../models/AdminSettings");
 const { getBulkPrice } = require("../../utils/orderUtils");
+const { resolveUrl } = require("../../config/s3");
 
 // Derives the effective pricing mode for a single purchase
 function resolvePricingMode(sellerMode, appliedTier) {
@@ -117,10 +118,20 @@ async function addToCart(req, res) {
 
 async function getCart(req, res) {
     try {
-        const cart = await Cart.findOne({ user: req.user._id }).populate("items.product", "title images");
+        const cart = await Cart.findOne({ user: req.user._id })
+            .populate("items.product", "title slug shortDescription images category")
+            .lean();
         if (!cart) {
             return res.json({ message: "Cart is empty", cart: { items: [], subtotal: 0, taxAmount: 0, shippingAmount: 0, discountAmount: 0, grandTotal: 0 } });
         }
+
+        // Resolve S3 presigned URLs for each item's image snapshot
+        await Promise.all(cart.items.map(async (item) => {
+            if (item.imageSnapshot) {
+                item.imageSnapshot = await resolveUrl(item.imageSnapshot);
+            }
+        }));
+
         res.status(200).json({ message: "Cart fetched successfully", cart });
     } catch (error) {
         res.status(500).json({ message: "Fetch failed", error: error.message });

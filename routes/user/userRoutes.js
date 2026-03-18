@@ -7,6 +7,7 @@ const wishlistRoutes = require("./wishlistRoutes");
 const reviewRoutes = require("./reviewRoutes");
 const contactRoutes = require("./contactQueryRoutes");
 const adminQueryRoutes = require("./adminQueryRoutes");
+const notificationRoutes = require("./notificationRoutes");
 const {
     getMyProfile,
     updateProfile,
@@ -39,5 +40,6 @@ router.use("/wishlist", wishlistRoutes);
 router.use("/review", reviewRoutes);
 router.use("/contact-query", contactRoutes);
 router.use("/admin-query", adminQueryRoutes);
+router.use("/notifications", requireUserAuth, notificationRoutes);
 
 module.exports = router;

@@ -1,5 +1,6 @@
 const Category = require("../../models/Category");
 const Subcategory = require("../../models/Subcategory");
+const { resolveUrl } = require("../../config/s3");
 
 async function getCategories(req, res) {
   try {
@@ -21,7 +22,10 @@ async function getCategoryById(req, res) {
     if (!category) {
       return res.status(404).json({ message: "Category not found" });
     }
-    const subCategory = await Subcategory.find({ category: category._id, isActive: true }).select("name slug imageUrl");
+    const subCategory = await Subcategory.find({ category: category._id, isActive: true }).select("name slug imageUrl").lean();
+    await Promise.all(subCategory.map(async (sub) => {
+        if (sub.imageUrl) sub.imageUrl = await resolveUrl(sub.imageUrl);
+    }));
     category._doc.subcategories = subCategory || [];
     return res.status(200).json({ category });
   } catch (error) {

@@ -61,6 +61,7 @@ async function getProductById(req, res) {
 
         const product = await Product.findOne({ _id: id, isActive: true })
             .populate("store", "description logoUrl bannerUrl sellerMode returnPolicy serviceablePostalCodes")
+            .populate("seller", "businessName ratingAverage ratingCount businessAddress")
             .lean();
         if (!product) return res.status(404).json({ message: "Product not found" });
 

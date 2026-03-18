@@ -1,6 +1,18 @@
 const Order = require("../../models/Order");
 const Product = require("../../models/Product");
 const { deriveOrderStatus } = require("../../utils/orderUtils");
+const { resolveUrl } = require("../../config/s3");
+
+async function resolveOrderImages(orders) {
+    const list = Array.isArray(orders) ? orders : [orders];
+    await Promise.all(list.map((order) =>
+        Promise.all(order.items.map(async (item) => {
+            if (item.imageSnapshot) {
+                item.imageSnapshot = await resolveUrl(item.imageSnapshot);
+            }
+        }))
+    ));
+}
 
 async function getMyOrders(req, res) {
     try {
@@ -8,13 +20,17 @@ async function getMyOrders(req, res) {
         const limit = Number(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
-        const orders = await Order.find({ user: req.user._id })
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limit)
-            .populate("items.product", "title images");
+        const [orders, total] = await Promise.all([
+            Order.find({ user: req.user._id })
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .populate("items.product", "title images slug")
+                .lean(),
+            Order.countDocuments({ user: req.user._id })
+        ]);
 
-        const total = await Order.countDocuments({ user: req.user._id });
+        await resolveOrderImages(orders);
 
         res.status(200).json({
             page,
@@ -33,11 +49,13 @@ async function getMyOrderById(req, res) {
         const order = await Order.findOne({
             _id: req.params.id,
             user: req.user._id
-        }).populate("items.product", "title images");
+        }).populate("items.product", "title images slug").lean();
 
         if (!order) {
             return res.status(404).json({ message: "Order not found" });
         }
+
+        await resolveOrderImages(order);
 
         res.status(200).json({ message: "Order fetched successfully", order });
     } catch (error) {

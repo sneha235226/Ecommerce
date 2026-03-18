@@ -1,6 +1,6 @@
 const Subcategory = require("../../models/Subcategory");
 const Product = require("../../models/Product");
-const { s3Client } = require("../../config/s3");
+const { s3Client, resolveUrl } = require("../../config/s3");
 const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const Category = require("../../models/Category");
 
@@ -61,7 +61,10 @@ async function createSubcategory(req, res) {
 
 async function getSubcategories(req, res) {
     try {
-        const subcategories = await Subcategory.find().populate("category", "name");
+        const subcategories = await Subcategory.find().populate("category", "name").lean();
+        await Promise.all(subcategories.map(async (sub) => {
+            if (sub.imageUrl) sub.imageUrl = await resolveUrl(sub.imageUrl);
+        }));
         res.json({
             count: subcategories.length,
             subcategories
