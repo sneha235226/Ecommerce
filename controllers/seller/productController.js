@@ -3,6 +3,7 @@ const Store = require("../../models/Store");
 const Category = require("../../models/Category");
 const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const { s3Client, resolveProductImages } = require("../../config/s3");
+const { indexProduct, updateProductIndex, deleteProductFromIndex } = require("../../services/elasticsearchService");
 const { v4: uuidv4 } = require("uuid");
 const { generateProductDescription } = require("../../services/claudeService");
 
@@ -254,6 +255,10 @@ async function createProduct(req, res) {
             returnPolicy: returnPolicy || "",
             isActive: true
         })
+
+        // Sync to Elasticsearch (non-blocking — never fails the API)
+        indexProduct(product, categoryExists.name, subcategory || "").catch(() => {});
+
         return res.status(201).json({
             message: "Product created successfully",
             product
@@ -410,6 +415,13 @@ async function updateProduct(req, res) {
 
 
         await product.save()
+
+        // Sync to Elasticsearch (non-blocking)
+        const Category = require("../../models/Category");
+        Category.findById(product.category).select("name").lean().then(cat => {
+            updateProductIndex(product, cat?.name || "", "").catch(() => {});
+        }).catch(() => {});
+
         return res.status(200).json({
             message: "Product updated successfully",
             product
@@ -450,6 +462,10 @@ async function deleteProduct(req, res) {
         // console.log("Deleting files:", keys)
         await deleteS3Files(keys)
         await Product.deleteOne({ _id: id })
+
+        // Remove from Elasticsearch (non-blocking)
+        deleteProductFromIndex(id).catch(() => {});
+
         res.json({
             message: "Product deleted successfully"
         })

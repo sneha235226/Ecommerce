@@ -208,7 +208,8 @@ async function getNearbyStoreProducts(req, res) {
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(Number(limit))
-                .select("-bulkPricing -specifications -searchKeywords"),
+                .select("-bulkPricing -specifications -searchKeywords")
+                .lean(),
             Product.countDocuments(productFilter)
         ]);
 

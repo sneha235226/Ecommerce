@@ -363,7 +363,7 @@ async function loginWithEmailOtp(req, res) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
     const needsPhoneVerify = user.isPhoneVerified === false && !!user.phone
-    if (needsEmailVerify || needsPhoneVerify) {
+    if (needsPhoneVerify) {
       return res.status(403).json({
         message: "Account not verified. Please verify your email and phone.",
         userId: user._id,

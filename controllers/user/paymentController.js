@@ -145,6 +145,7 @@ async function cartCheckout(req, res) {
         // ── COD: create order immediately ─────────────────────────────────
         const stockDecrements = await decrementStockForItems(orderItems);
 
+        const holdUntilDate = new Date(Date.now() + (settings.returnWindowDays || 7) * 24 * 60 * 60 * 1000);
         let hasWholesaleItem = false;
         const finalItems = orderItems.map(row => {
             if (row.pricingMode === "wholesale") hasWholesaleItem = true;
@@ -162,6 +163,7 @@ async function cartCheckout(req, res) {
                 commissionAmount: row.commissionAmount,
                 sellerPayoutAmount: row.sellerPayoutAmount,
                 payoutStatus: "on_hold",
+                holdUntil: holdUntilDate,
                 titleSnapshot: row.item.titleSnapshot,
                 skuSnapshot: row.item.skuSnapshot,
                 imageSnapshot: row.item.imageSnapshot
@@ -180,11 +182,15 @@ async function cartCheckout(req, res) {
                 subtotal, taxAmount, shippingAmount, grandTotal
             });
         } catch (err) {
-            for (const dec of stockDecrements) {
-                await Product.updateOne(
-                    { _id: dec.productId, "variants._id": dec.variantId },
-                    { $inc: { "variants.$.stock": dec.qty, totalStock: dec.qty } }
-                );
+            try {
+                for (const dec of stockDecrements) {
+                    await Product.updateOne(
+                        { _id: dec.productId, "variants._id": dec.variantId },
+                        { $inc: { "variants.$.stock": dec.qty, totalStock: dec.qty } }
+                    );
+                }
+            } catch (rollbackErr) {
+                console.error("CRITICAL: stock rollback failed after COD order creation error:", rollbackErr.message);
             }
             throw err;
         }
@@ -238,6 +244,7 @@ async function verifyAndPlaceCartOrder(req, res) {
 
         const stockDecrements = await decrementStockForItems(orderItems);
 
+        const holdUntilDate = new Date(Date.now() + (settings.returnWindowDays || 7) * 24 * 60 * 60 * 1000);
         let hasWholesaleItem = false;
         const finalItems = orderItems.map(row => {
             if (row.pricingMode === "wholesale") hasWholesaleItem = true;
@@ -255,6 +262,7 @@ async function verifyAndPlaceCartOrder(req, res) {
                 commissionAmount: row.commissionAmount,
                 sellerPayoutAmount: row.sellerPayoutAmount,
                 payoutStatus: "on_hold",
+                holdUntil: holdUntilDate,
                 titleSnapshot: row.item.titleSnapshot,
                 skuSnapshot: row.item.skuSnapshot,
                 imageSnapshot: row.item.imageSnapshot
@@ -275,11 +283,15 @@ async function verifyAndPlaceCartOrder(req, res) {
                 paidAt: new Date()
             });
         } catch (err) {
-            for (const dec of stockDecrements) {
-                await Product.updateOne(
-                    { _id: dec.productId, "variants._id": dec.variantId },
-                    { $inc: { "variants.$.stock": dec.qty, totalStock: dec.qty } }
-                );
+            try {
+                for (const dec of stockDecrements) {
+                    await Product.updateOne(
+                        { _id: dec.productId, "variants._id": dec.variantId },
+                        { $inc: { "variants.$.stock": dec.qty, totalStock: dec.qty } }
+                    );
+                }
+            } catch (rollbackErr) {
+                console.error("CRITICAL: stock rollback failed after online cart order creation error:", rollbackErr.message);
             }
             throw err;
         }
@@ -390,6 +402,7 @@ async function buyNow(req, res) {
                     appliedTier: pricing.appliedTier,
                     commissionPercent, commissionAmount, sellerPayoutAmount,
                     payoutStatus: "on_hold",
+                    holdUntil: new Date(Date.now() + (settings.returnWindowDays || 7) * 24 * 60 * 60 * 1000),
                     titleSnapshot: product.title,
                     skuSnapshot: variant.sku,
                     imageSnapshot: variant.images?.[0] || product.images?.[0] || ""
@@ -399,10 +412,14 @@ async function buyNow(req, res) {
                 subtotal: totalPrice, taxAmount, shippingAmount: 0, grandTotal
             });
         } catch (err) {
-            await Product.updateOne(
-                { _id: product._id, "variants._id": variantId },
-                { $inc: { "variants.$.stock": finalQty, totalStock: finalQty } }
-            );
+            try {
+                await Product.updateOne(
+                    { _id: product._id, "variants._id": variantId },
+                    { $inc: { "variants.$.stock": finalQty, totalStock: finalQty } }
+                );
+            } catch (rollbackErr) {
+                console.error("CRITICAL: stock rollback failed after COD buyNow order creation error:", rollbackErr.message);
+            }
             throw err;
         }
 
@@ -492,6 +509,7 @@ async function verifyAndPlaceBuyNow(req, res) {
                     appliedTier: pricing.appliedTier,
                     commissionPercent, commissionAmount, sellerPayoutAmount,
                     payoutStatus: "on_hold",
+                    holdUntil: new Date(Date.now() + (settings.returnWindowDays || 7) * 24 * 60 * 60 * 1000),
                     titleSnapshot: product.title,
                     skuSnapshot: variant.sku,
                     imageSnapshot: variant.images?.[0] || product.images?.[0] || ""
@@ -503,10 +521,14 @@ async function verifyAndPlaceBuyNow(req, res) {
                 paidAt: new Date()
             });
         } catch (err) {
-            await Product.updateOne(
-                { _id: product._id, "variants._id": variantId },
-                { $inc: { "variants.$.stock": finalQty, totalStock: finalQty } }
-            );
+            try {
+                await Product.updateOne(
+                    { _id: product._id, "variants._id": variantId },
+                    { $inc: { "variants.$.stock": finalQty, totalStock: finalQty } }
+                );
+            } catch (rollbackErr) {
+                console.error("CRITICAL: stock rollback failed after online buyNow order creation error:", rollbackErr.message);
+            }
             throw err;
         }
 

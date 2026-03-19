@@ -21,12 +21,13 @@ const adminSettingsSchema = new mongoose.Schema(
 );
 
 // Static helper to always get (or create) the single settings document
+// Uses findOneAndUpdate with upsert — atomic, safe under concurrent requests
 adminSettingsSchema.statics.getSettings = async function () {
-    let settings = await this.findOne();
-    if (!settings) {
-        settings = await this.create({});
-    }
-    return settings;
+    return this.findOneAndUpdate(
+        {},
+        {},
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 };
 
 module.exports = mongoose.models.AdminSettings || mongoose.model("AdminSettings", adminSettingsSchema);

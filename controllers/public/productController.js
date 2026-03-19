@@ -16,7 +16,9 @@ function getModeFilter(mode) {
 
 async function getProducts(req, res) {
     try {
-        const { mode, page = 1, limit = 20 } = req.query;
+        const { mode } = req.query;
+        const page  = Math.max(1, parseInt(req.query.page)  || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
 
         if (mode === "wholesale") {
             const settings = await AdminSettings.getSettings();
@@ -25,7 +27,7 @@ async function getProducts(req, res) {
             }
         }
 
-        const skip = (Number(page) - 1) * Number(limit);
+        const skip = (page - 1) * limit;
         const filter = { isActive: true, ...getModeFilter(mode) };
 
         const [products, total] = await Promise.all([
@@ -33,7 +35,7 @@ async function getProducts(req, res) {
                 .populate("store", "description logoUrl bannerUrl sellerMode")
                 .sort({ createdAt: -1 })
                 .skip(skip)
-                .limit(Number(limit))
+                .limit(limit)
                 .select("-bulkPricing -specifications -searchKeywords")
                 .lean(),
             Product.countDocuments(filter)
@@ -43,10 +45,8 @@ async function getProducts(req, res) {
 
         return res.status(200).json({
             message: "Products fetched successfully",
-            page: Number(page),
-            limit: Number(limit),
-            total,
-            totalPages: Math.ceil(total / Number(limit)),
+            page, limit, total,
+            totalPages: Math.ceil(total / limit),
             products
         });
     } catch (error) {
@@ -76,7 +76,9 @@ async function getProductById(req, res) {
 async function getProductBySubcategory(req, res) {
     try {
         const { subcategory } = req.params;
-        const { mode, page = 1, limit = 20 } = req.query;
+        const { mode } = req.query;
+        const page  = Math.max(1, parseInt(req.query.page)  || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
 
         if (mode === "wholesale") {
             const settings = await AdminSettings.getSettings();
@@ -85,7 +87,7 @@ async function getProductBySubcategory(req, res) {
             }
         }
 
-        const skip = (Number(page) - 1) * Number(limit);
+        const skip = (page - 1) * limit;
         const filter = { subcategory, isActive: true, ...getModeFilter(mode) };
 
         const [products, total] = await Promise.all([
@@ -93,7 +95,7 @@ async function getProductBySubcategory(req, res) {
                 .populate("store", "description logoUrl bannerUrl sellerMode")
                 .sort({ createdAt: -1 })
                 .skip(skip)
-                .limit(Number(limit))
+                .limit(limit)
                 .select("-bulkPricing -specifications -searchKeywords")
                 .lean(),
             Product.countDocuments(filter)
@@ -103,10 +105,8 @@ async function getProductBySubcategory(req, res) {
 
         return res.status(200).json({
             message: "Products fetched successfully",
-            page: Number(page),
-            limit: Number(limit),
-            total,
-            totalPages: Math.ceil(total / Number(limit)),
+            page, limit, total,
+            totalPages: Math.ceil(total / limit),
             products
         });
     } catch (error) {
@@ -117,7 +117,9 @@ async function getProductBySubcategory(req, res) {
 async function getProductBySpecificStore(req, res) {
     try {
         const { store } = req.params;
-        const { mode, page = 1, limit = 20 } = req.query;
+        const { mode } = req.query;
+        const page  = Math.max(1, parseInt(req.query.page)  || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
 
         if (mode === "wholesale") {
             const settings = await AdminSettings.getSettings();
@@ -126,7 +128,7 @@ async function getProductBySpecificStore(req, res) {
             }
         }
 
-        const skip = (Number(page) - 1) * Number(limit);
+        const skip = (page - 1) * limit;
         const filter = { store, isActive: true, ...getModeFilter(mode) };
 
         const [products, total] = await Promise.all([
@@ -134,7 +136,7 @@ async function getProductBySpecificStore(req, res) {
                 .populate("store", "description logoUrl bannerUrl sellerMode returnPolicy serviceablePostalCodes")
                 .sort({ createdAt: -1 })
                 .skip(skip)
-                .limit(Number(limit))
+                .limit(limit)
                 .select("-bulkPricing -specifications -searchKeywords")
                 .lean(),
             Product.countDocuments(filter)
@@ -144,10 +146,8 @@ async function getProductBySpecificStore(req, res) {
 
         return res.status(200).json({
             message: "Products fetched successfully",
-            page: Number(page),
-            limit: Number(limit),
-            total,
-            totalPages: Math.ceil(total / Number(limit)),
+            page, limit, total,
+            totalPages: Math.ceil(total / limit),
             products
         });
     } catch (error) {

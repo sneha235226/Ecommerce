@@ -10,6 +10,8 @@ const storeSchema = new mongoose.Schema(
     sellerMode: { type: String, enum: ["retail", "wholesale", "hybrid"], default: "retail", index: true },
     serviceablePostalCodes: [{ type: String, trim: true }],
     returnPolicy: { type: String, trim: true, default: "" },
+    ratingAverage: { type: Number, min: 0, max: 5, default: 0 },
+    ratingCount:   { type: Number, min: 0, default: 0 },
     location: {
       type: {
         type: String,

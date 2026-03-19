@@ -79,3 +79,4 @@ async function updateQueryStatus(req, res) {
 }
 
 module.exports = { getAllQueries, replyToQuery, updateQueryStatus };
+
