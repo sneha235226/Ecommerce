@@ -67,14 +67,21 @@ async function deleteProductFromIndex(productId) {
 }
 
 // Main search — fuzzy + partial match across all key fields
-async function searchProducts(query, { page = 1, limit = 20, targetAudience, minPrice, maxPrice, categoryId, storeId } = {}) {
+async function searchProducts(query, { page = 1, limit = 20, mode, minPrice, maxPrice, categoryId, storeId } = {}) {
     const from = (page - 1) * limit;
 
     // Build optional filters
     const filters = [{ term: { isActive: true } }];
-    if (targetAudience) filters.push({ term: { targetAudience } });
-    if (categoryId)     filters.push({ term: { categoryId } });
-    if (storeId)        filters.push({ term: { storeId } });
+
+    // mode filter — mirrors getModeFilter() in productController:
+    //   retail    → targetAudience is "B2C" or "both"
+    //   wholesale → targetAudience is "B2B" or "both"
+    //   (absent)  → no filter (show everything)
+    if (mode === "retail")     filters.push({ terms: { targetAudience: ["B2C", "both"] } });
+    else if (mode === "wholesale") filters.push({ terms: { targetAudience: ["B2B", "both"] } });
+
+    if (categoryId) filters.push({ term: { categoryId } });
+    if (storeId)    filters.push({ term: { storeId } });
     if (minPrice !== undefined || maxPrice !== undefined) {
         const range = {};
         if (minPrice !== undefined) range.gte = Number(minPrice);
@@ -147,8 +154,10 @@ async function searchProducts(query, { page = 1, limit = 20, targetAudience, min
                   "storeId", "categoryId", "subcategoryId", "createdAt"]
     });
 
-    const hits = result.hits.hits;
-    const total = result.hits.total.value;
+    const hits  = result.hits.hits;
+    const total = typeof result.hits.total === "number"
+        ? result.hits.total
+        : result.hits.total.value;
 
     const products = hits.map(hit => ({
         _id:       hit._id,
@@ -161,13 +170,17 @@ async function searchProducts(query, { page = 1, limit = 20, targetAudience, min
 }
 
 // Autocomplete suggestions (lightweight — title only, no fuzziness)
-async function suggestProducts(query, limit = 8) {
+async function suggestProducts(query, { mode, limit = 8 } = {}) {
+    const filters = [{ term: { isActive: true } }];
+    if (mode === "retail")         filters.push({ terms: { targetAudience: ["B2C", "both"] } });
+    else if (mode === "wholesale") filters.push({ terms: { targetAudience: ["B2B", "both"] } });
+
     const result = await client.search({
         index: INDEX,
         size: limit,
         query: {
             bool: {
-                filter: [{ term: { isActive: true } }],
+                filter: filters,
                 should: [
                     { match: { title: { query, analyzer: "autocomplete_search" } } },
                     { match: { brand: { query, analyzer: "autocomplete_search" } } }

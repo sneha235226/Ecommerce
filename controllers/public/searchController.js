@@ -1,14 +1,17 @@
 const { searchProducts, suggestProducts } = require("../../services/elasticsearchService");
 const { resolveUrl } = require("../../config/s3");
+const AdminSettings = require("../../models/AdminSettings");
 
-// GET /api/public/search?q=...&page=1&limit=20&targetAudience=B2C&minPrice=100&maxPrice=5000&categoryId=...&storeId=...
+// GET /api/public/search?q=...&page=1&limit=20&mode=retail|wholesale&minPrice=100&maxPrice=5000&categoryId=...&storeId=...
+//   mode=retail    → B2C + "both" products  (default when omitted: all products)
+//   mode=wholesale → B2B + "both" products  (blocked when wholesaleEnabled=false)
 async function search(req, res) {
     try {
         const {
             q,
-            page = 1,
+            page  = 1,
             limit = 20,
-            targetAudience,
+            mode,
             minPrice,
             maxPrice,
             categoryId,
@@ -19,10 +22,16 @@ async function search(req, res) {
             return res.status(400).json({ message: "Query parameter 'q' is required" });
         }
 
+        if (mode === "wholesale") {
+            const settings = await AdminSettings.getSettings();
+            if (!settings.wholesaleEnabled)
+                return res.status(403).json({ message: "Wholesale is currently disabled" });
+        }
+
         const results = await searchProducts(q.trim(), {
-            page:    Math.max(1, parseInt(page) || 1),
-            limit:   Math.min(50, Math.max(1, parseInt(limit) || 20)),
-            targetAudience,
+            page:  Math.max(1, parseInt(page) || 1),
+            limit: Math.min(50, Math.max(1, parseInt(limit) || 20)),
+            mode,
             minPrice,
             maxPrice,
             categoryId,
@@ -48,21 +57,22 @@ async function search(req, res) {
             products:   results.products
         });
     } catch (error) {
-        console.error("[Search] error:", error.message);
-        return res.status(500).json({ message: "Search failed", error: error.message });
+        const detail = error.message || error.meta?.body?.error?.reason || "Elasticsearch unavailable";
+        console.error("[Search] error:", detail);
+        return res.status(500).json({ message: "Search failed", error: detail });
     }
 }
 
-// GET /api/public/search/suggest?q=...
+// GET /api/public/search/suggest?q=...&mode=retail|wholesale
 async function suggest(req, res) {
     try {
-        const { q } = req.query;
+        const { q, mode } = req.query;
 
         if (!q || q.trim().length < 2) {
             return res.status(200).json({ suggestions: [] });
         }
 
-        const suggestions = await suggestProducts(q.trim());
+        const suggestions = await suggestProducts(q.trim(), { mode });
 
         // Resolve first image for each suggestion
         await Promise.all(
@@ -75,8 +85,9 @@ async function suggest(req, res) {
 
         return res.status(200).json({ suggestions });
     } catch (error) {
-        console.error("[Suggest] error:", error.message);
-        return res.status(500).json({ message: "Suggestion failed", error: error.message });
+        const detail = error.message || error.meta?.body?.error?.reason || "Elasticsearch unavailable";
+        console.error("[Suggest] error:", detail);
+        return res.status(500).json({ message: "Suggestion failed", error: detail });
     }
 }
 
