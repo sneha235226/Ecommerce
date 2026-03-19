@@ -158,5 +158,11 @@ orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ orderNumber: 1, paymentStatus: 1 });
 orderSchema.index({ "items.seller": 1, createdAt: -1 });
 orderSchema.index({ "items.payoutStatus": 1, "items.holdUntil": 1 }); // cron payout queries
+// Idempotency — prevents duplicate orders from double verify/webhook calls
+// sparse: true so COD orders (razorpayOrderId = "") don't conflict
+orderSchema.index(
+    { razorpayOrderId: 1 },
+    { unique: true, sparse: true, partialFilterExpression: { razorpayOrderId: { $gt: "" } } }
+);
 
 module.exports = mongoose.models.Order || mongoose.model("Order", orderSchema);

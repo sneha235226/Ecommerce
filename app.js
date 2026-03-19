@@ -13,7 +13,14 @@ const cors = require("cors");
 
 app.use(cors());
 
-app.use(express.json());
+app.use(express.json({
+    verify: (req, _res, buf) => {
+        // Preserve raw body for Razorpay webhook signature verification
+        if (req.originalUrl.startsWith("/api/users/payments/webhook/razorpay")) {
+            req.rawBody = buf;
+        }
+    }
+}));
 
 app.get("/health", (req, res) => {
   res.status(200).json({ message: "Server is running" });
