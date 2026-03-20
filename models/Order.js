@@ -164,5 +164,11 @@ orderSchema.index(
     { razorpayOrderId: 1 },
     { unique: true, sparse: true, partialFilterExpression: { razorpayOrderId: { $gt: "" } } }
 );
+// Belt-and-suspenders: also unique on paymentId so concurrent verify+webhook
+// can't both sneak through the idempotency findOne before either creates the order.
+orderSchema.index(
+    { razorpayPaymentId: 1 },
+    { unique: true, sparse: true, partialFilterExpression: { razorpayPaymentId: { $gt: "" } } }
+);
 
 module.exports = mongoose.models.Order || mongoose.model("Order", orderSchema);

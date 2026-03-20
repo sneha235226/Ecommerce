@@ -431,6 +431,7 @@ async function loginWithPhoneOtp(req, res) {
       }
       return res.status(401).json({ message: "Invalid credentials" });
     }
+    const needsEmailVerify = user.isEmailVerified === false && !!user.email
     const needsPhoneVerify = user.isPhoneVerified === false && !!user.phone
     if (needsEmailVerify || needsPhoneVerify) {
       return res.status(403).json({
@@ -466,7 +467,6 @@ async function loginWithPhoneOtp(req, res) {
     if (hashedInput !== user.phoneVerificationOtp) {
       return res.status(400).json({ message: "Invalid OTP. Please try again." });
     }
-    const needsEmailVerify = user.isEmailVerified === false && !!user.email
     user.isPhoneVerified = true;
     user.phoneVerificationOtp = null;
     user.phoneVerificationExpires = null;

@@ -43,7 +43,7 @@ async function reserveItem(userId, productId, variantId, quantity, razorpayOrder
     const expiresAt = new Date(Date.now() + RESERVATION_TTL_MINUTES * 60 * 1000);
     return ReservedStock.findOneAndUpdate(
         { user: userId, product: productId, variantId },
-        { quantity, expiresAt, razorpayOrderId },
+        { $set: { quantity, expiresAt, razorpayOrderId } },   // explicit $set — never replaces user/product/variantId
         { upsert: true, new: true }
     );
 }
@@ -125,8 +125,54 @@ async function releaseByRazorpayOrder(razorpayOrderId) {
     await ReservedStock.deleteMany({ razorpayOrderId });
 }
 
+/**
+ * Batch check available stock for multiple items in ONE aggregate query.
+ * Returns a Map keyed by "productId_variantId" → available quantity.
+ * Excludes `excludeUserId`'s own reservations so re-checkout works correctly.
+ */
+async function batchGetAvailableStock(resolvedItems, excludeUserId) {
+    if (!resolvedItems.length) return new Map();
+
+    const productIds  = resolvedItems.map(r => r.item.product);
+    const variantIds  = resolvedItems.map(r => r.item.variantId);
+
+    const rows = await ReservedStock.aggregate([
+        {
+            $match: {
+                product:   { $in: productIds },
+                variantId: { $in: variantIds },
+                user:      { $ne: excludeUserId },
+                expiresAt: { $gt: new Date() }
+            }
+        },
+        {
+            $group: {
+                _id:      { product: "$product", variantId: "$variantId" },
+                reserved: { $sum: "$quantity" }
+            }
+        }
+    ]);
+
+    const reservedMap = new Map(
+        rows.map(r => [`${r._id.product}_${r._id.variantId}`, r.reserved])
+    );
+
+    // Use variant.stock from the first occurrence of each key.
+    // Cart items for the same product+variant should be identical — take first.
+    const result = new Map();
+    for (const { item, variant } of resolvedItems) {
+        const key = `${item.product}_${item.variantId}`;
+        if (!result.has(key)) {
+            const reserved = reservedMap.get(key) || 0;
+            result.set(key, Math.max(0, variant.stock - reserved));
+        }
+    }
+    return result;
+}
+
 module.exports = {
     getAvailableStock,
+    batchGetAvailableStock,
     reserveCartItems,
     reserveSingleItem,
     reserveItem,
